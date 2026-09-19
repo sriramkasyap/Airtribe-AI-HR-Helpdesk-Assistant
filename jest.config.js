@@ -1,18 +1,23 @@
 module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
-  roots: ['<rootDir>/packages'],
+  roots: ['<rootDir>/apps', '<rootDir>/packages'],
   moduleNameMapper: {
-    '^@shared-types/(.*)$': '<rootDir>/packages/shared-types/src/$1'
+    '^@shared-types/(.*)$': '<rootDir>/packages/shared-types/src/$1',
+    '^@ai-hr/config/(.*)$': '<rootDir>/packages/config/$1'
   },
   testMatch: ['**/*.test.ts'],
-  collectCoverageFrom: ['packages/backend/src/**/*.ts', '!packages/backend/src/index.ts'],
+  collectCoverageFrom: [
+    'apps/api/src/**/*.ts',
+    '!apps/api/src/index.ts',
+    'packages/shared-types/src/**/*.ts'
+  ],
   coverageThreshold: {
     global: {
-      branches: 50,
-      functions: 50,
-      lines: 50,
-      statements: 50
+      branches: 95,
+      functions: 95,
+      lines: 95,
+      statements: 95
     }
   }
 };

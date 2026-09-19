@@ -1,0 +1,1 @@
+FROM node:22-alpine\nWORKDIR /app\nCOPY apps/api/package*.json ./\nRUN npm ci --only=production\nCOPY apps/api/dist ./dist\nENV NODE_ENV=production\nENV PORT=3000\nUSER node\nEXPOSE 3000\nCMD ["node", "dist/index.js"]\n

@@ -1,19 +1,17 @@
 {
   "private": true,
-  "workspaces": ["packages/*"],
+  "packageManager": "pnpm@10.0.0",
   "scripts": {
-    "dev": "npm run dev:backend",
-    "dev:backend": "cd packages/backend && npm run dev",
-    "build": "npm run build:backend",
-    "build:backend": "cd packages/backend && npm run build",
-    "test": "jest",
-    "lint": "npm workspaces run lint",
-    "seed": "cd packages/backend && npm run seed"
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "seed": "cd apps/api && pnpm run seed",
+    "clean": "rm -rf node_modules .turbo dist apps/*/dist packages/*/dist apps/*/node_modules packages/*/node_modules"
   },
   "devDependencies": {
     "concurrently": "^8.0.0",
-    "jest": "^29.7.0",
-    "ts-jest": "^29.2.0",
-    "typescript": "^5.7.0"
+    "turbo": "^2.5.0"
   }
 }
