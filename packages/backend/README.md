@@ -1,0 +1,1 @@
+# AI HR Helpdesk Assistant Backend\n\nNode.js + Express + TypeScript backend for HR helpdesk with LLM, tools, and MongoDB.\n
