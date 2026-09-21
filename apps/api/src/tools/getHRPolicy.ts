@@ -1,10 +1,7 @@
 import { HRPolicyModel } from '../db/models/HRPolicy';
-import type { ToolContext, ToolResult } from './types';
+import type { ToolResult } from './types';
 
-export async function getHRPolicy(
-  args: { policyId?: string },
-  _context?: ToolContext,
-): Promise<ToolResult> {
+export async function getHRPolicy(args: { policyId?: string }): Promise<ToolResult> {
   if (!args.policyId) return { success: false, error: 'Policy ID required' };
   const policy = await HRPolicyModel.findOne({ id: args.policyId })
     .select('id title category content effectiveDate isActive')

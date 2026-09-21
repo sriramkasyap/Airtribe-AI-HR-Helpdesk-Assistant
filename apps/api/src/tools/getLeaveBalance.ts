@@ -1,5 +1,6 @@
 import { EmployeeModel } from '../db/models/Employee';
 import type { ToolContext, ToolResult } from './types';
+import { unauthorizedIfOtherEmployee } from './access';
 
 export async function getLeaveBalance(
   args: { employeeId?: string; name?: string },
@@ -8,12 +9,12 @@ export async function getLeaveBalance(
   const resolved = await resolveTargetEmployeeId(args, context);
   if (!resolved.success) return resolved;
 
-  const targetId = resolved.employeeId;
-  if (context.employeeId !== targetId && context.role !== 'manager') {
-    return { success: false, error: "Unauthorized: cannot access another employee's leave balance" };
-  }
+  const denied = unauthorizedIfOtherEmployee(context, resolved.employeeId, 'leave balance');
+  if (denied) return denied;
 
-  const employee = await EmployeeModel.findOne({ id: targetId }).select('id name leaveBalance').lean();
+  const employee = await EmployeeModel.findOne({ id: resolved.employeeId })
+    .select('id name leaveBalance')
+    .lean();
   if (!employee?.leaveBalance) return { success: false, error: 'Leave balance not found' };
   return {
     success: true,

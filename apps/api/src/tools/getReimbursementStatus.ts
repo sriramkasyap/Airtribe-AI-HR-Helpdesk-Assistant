@@ -1,13 +1,14 @@
 import { ReimbursementModel } from '../db/models/Reimbursement';
 import type { ToolContext, ToolResult } from './types';
+import { unauthorizedIfOtherEmployee } from './access';
 
 export async function getReimbursementStatus(
   args: { employeeId: string },
   context: ToolContext,
 ): Promise<ToolResult> {
-  if (context.employeeId !== args.employeeId && context.role !== 'manager') {
-    return { success: false, error: "Unauthorized: cannot access another employee's reimbursement history" };
-  }
+  const denied = unauthorizedIfOtherEmployee(context, args.employeeId, 'reimbursement history');
+  if (denied) return denied;
+
   const reimbursements = await ReimbursementModel.find({ employeeId: args.employeeId })
     .select('id type amount status submittedAt')
     .lean();

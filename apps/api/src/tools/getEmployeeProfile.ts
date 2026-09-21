@@ -1,13 +1,14 @@
 import { EmployeeModel } from '../db/models/Employee';
 import type { ToolContext, ToolResult } from './types';
+import { unauthorizedIfOtherEmployee } from './access';
 
 export async function getEmployeeProfile(
   args: { employeeId: string },
   context: ToolContext,
 ): Promise<ToolResult> {
-  if (context.employeeId !== args.employeeId && context.role !== 'manager') {
-    return { success: false, error: "Unauthorized: cannot access another employee's profile" };
-  }
+  const denied = unauthorizedIfOtherEmployee(context, args.employeeId, 'profile');
+  if (denied) return denied;
+
   const employee = await EmployeeModel.findOne({ id: args.employeeId })
     .select('id name email department role hireDate')
     .lean();

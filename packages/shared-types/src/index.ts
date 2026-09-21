@@ -106,7 +106,6 @@ export type RequestType =
 export interface ToolContext {
   employeeId: string;
   role: EmployeeRole;
-  models: Record<string, unknown>;
 }
 
 export interface ToolResult<T = unknown> {

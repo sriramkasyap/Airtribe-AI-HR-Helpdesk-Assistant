@@ -1,10 +1,2 @@
-export interface ToolContext {
-  employeeId: string;
-  role: 'employee' | 'manager';
-}
-
-export interface ToolResult<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
+/** Re-export shared tool types so tools stay on one definition. */
+export type { ToolContext, ToolResult } from '@ai-hr/shared-types';
