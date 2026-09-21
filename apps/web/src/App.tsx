@@ -9,21 +9,40 @@ function RequireAuth({ children }: { children: ReactElement }) {
   return children;
 }
 
+/** Must be a route element so getToken() re-runs on navigation (not baked into App render). */
+function GuestOnly({ children }: { children: ReactElement }) {
+  if (getToken()) return <Navigate to="/" replace />;
+  return children;
+}
+
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route
+        path="/login"
+        element={
+          <GuestOnly>
+            <Login />
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <Chat />
+          </RequireAuth>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={getToken() ? <Navigate to="/" replace /> : <Login />} />
-        <Route
-          path="/"
-          element={
-            <RequireAuth>
-              <Chat />
-            </RequireAuth>
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <AppRoutes />
     </BrowserRouter>
   );
 }
