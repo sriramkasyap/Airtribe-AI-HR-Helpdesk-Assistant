@@ -6,6 +6,12 @@ export const mockEmployee = (overrides: Record<string, unknown> = {}) => ({
   department: 'engineering',
   role: 'employee',
   hireDate: '2023-01-01',
+  leaveBalance: {
+    casualLeave: 21,
+    sickLeave: 12,
+    earnedLeave: 18,
+    year: 2024,
+  },
   ...overrides,
 });
 
@@ -16,12 +22,16 @@ export const mockManager = (overrides: Record<string, unknown> = {}) => ({
   department: 'hr',
   role: 'manager',
   hireDate: '2020-01-01',
+  leaveBalance: {
+    casualLeave: 15,
+    sickLeave: 8,
+    earnedLeave: 10,
+    year: 2024,
+  },
   ...overrides,
 });
 
 export const mockLeaveBalance = (overrides: Record<string, unknown> = {}) => ({
-  id: 'lb1',
-  employeeId: 'emp1',
   casualLeave: 21,
   sickLeave: 12,
   earnedLeave: 18,

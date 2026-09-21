@@ -5,13 +5,13 @@ export interface Employee {
   department: string;
   role: EmployeeRole;
   hireDate: string;
+  leaveBalance: LeaveBalance;
 }
 
 export type EmployeeRole = 'employee' | 'manager';
 
+/** Leave quotas for the current entitlement year — stored on the employee document. */
 export interface LeaveBalance {
-  id: string;
-  employeeId: string;
   casualLeave: number;
   sickLeave: number;
   earnedLeave: number;

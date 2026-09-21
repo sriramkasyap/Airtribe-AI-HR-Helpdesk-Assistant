@@ -10,13 +10,15 @@ describe('shared-types', () => {
       department: 'engineering',
       role: 'employee',
       hireDate: '2023-01-01',
+      leaveBalance: { casualLeave: 21, sickLeave: 12, earnedLeave: 18, year: 2024 },
     };
     expect(emp.id).toBe('1');
     expect(emp.role).toBe('employee');
+    expect(emp.leaveBalance.casualLeave).toBe(21);
   });
 
   it('should type the LeaveBalance interface', () => {
-    const bal: LeaveBalance = { id: '1', employeeId: '1', casualLeave: 21, sickLeave: 12, earnedLeave: 18, year: 2024 };
+    const bal: LeaveBalance = { casualLeave: 21, sickLeave: 12, earnedLeave: 18, year: 2024 };
     expect(bal.casualLeave).toBe(21);
   });
 

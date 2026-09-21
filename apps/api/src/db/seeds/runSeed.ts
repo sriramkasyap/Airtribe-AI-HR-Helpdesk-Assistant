@@ -1,5 +1,10 @@
+import path from 'path';
+import { config } from 'dotenv';
 import mongoose from 'mongoose';
 import { seedDatabase } from './seed';
+
+// Repo-root .env (apps/api/src/db/seeds → ../../../../..)
+config({ path: path.resolve(__dirname, '../../../../../.env') });
 
 const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017/hr-helpdesk';
 

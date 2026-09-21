@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import { EmployeeModel } from '../models/Employee';
-import { LeaveBalanceModel } from '../models/LeaveBalance';
 import { ReimbursementModel } from '../models/Reimbursement';
 import { HRPolicyModel } from '../models/HRPolicy';
 
@@ -9,14 +8,33 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
 
 const SEED_DATA = {
   employees: [
-    { id: 'emp1', name: 'Alice Johnson', email: 'alice@company.com', department: 'engineering', role: 'employee', hireDate: new Date('2022-03-15') },
-    { id: 'emp2', name: 'Bob Smith', email: 'bob@company.com', department: 'engineering', role: 'manager', hireDate: new Date('2020-06-01') },
-    { id: 'emp3', name: 'Carol White', email: 'carol@company.com', department: 'hr', role: 'employee', hireDate: new Date('2021-09-20') },
-  ],
-  leaveBalances: [
-    { id: 'lb1', employeeId: 'emp1', casualLeave: 21, sickLeave: 12, earnedLeave: 18, year: CURRENT_YEAR },
-    { id: 'lb2', employeeId: 'emp2', casualLeave: 15, sickLeave: 8, earnedLeave: 10, year: CURRENT_YEAR },
-    { id: 'lb3', employeeId: 'emp3', casualLeave: 20, sickLeave: 15, earnedLeave: 16, year: CURRENT_YEAR },
+    {
+      id: 'emp1',
+      name: 'Alice Johnson',
+      email: 'alice@company.com',
+      department: 'engineering',
+      role: 'employee' as const,
+      hireDate: new Date('2022-03-15'),
+      leaveBalance: { casualLeave: 21, sickLeave: 12, earnedLeave: 18, year: CURRENT_YEAR },
+    },
+    {
+      id: 'emp2',
+      name: 'Bob Smith',
+      email: 'bob@company.com',
+      department: 'engineering',
+      role: 'manager' as const,
+      hireDate: new Date('2020-06-01'),
+      leaveBalance: { casualLeave: 15, sickLeave: 8, earnedLeave: 10, year: CURRENT_YEAR },
+    },
+    {
+      id: 'emp3',
+      name: 'Carol White',
+      email: 'carol@company.com',
+      department: 'hr',
+      role: 'employee' as const,
+      hireDate: new Date('2021-09-20'),
+      leaveBalance: { casualLeave: 20, sickLeave: 15, earnedLeave: 16, year: CURRENT_YEAR },
+    },
   ],
   reimbursements: [
     { id: 'reb1', employeeId: 'emp1', amount: 500, status: 'pending', type: 'travel', submittedAt: daysAgo(6) },
@@ -30,16 +48,19 @@ const SEED_DATA = {
 };
 
 export async function seedDatabase(): Promise<void> {
+  // Drop legacy LeaveBalance collection if it still exists from earlier schemas.
+  if (mongoose.connection.db) {
+    await mongoose.connection.db.dropCollection('leavebalances').catch(() => undefined);
+  }
+
   await Promise.all([
     EmployeeModel.deleteMany({}),
-    LeaveBalanceModel.deleteMany({}),
     ReimbursementModel.deleteMany({}),
     HRPolicyModel.deleteMany({}),
   ]);
 
   await Promise.all([
     EmployeeModel.insertMany(SEED_DATA.employees),
-    LeaveBalanceModel.insertMany(SEED_DATA.leaveBalances),
     ReimbursementModel.insertMany(SEED_DATA.reimbursements),
     HRPolicyModel.insertMany(SEED_DATA.policies),
   ]);
