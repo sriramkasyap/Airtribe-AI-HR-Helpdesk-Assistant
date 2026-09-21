@@ -4,6 +4,9 @@ import { LeaveBalanceModel } from '../models/LeaveBalance';
 import { ReimbursementModel } from '../models/Reimbursement';
 import { HRPolicyModel } from '../models/HRPolicy';
 
+const CURRENT_YEAR = new Date().getFullYear();
+const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
 const SEED_DATA = {
   employees: [
     { id: 'emp1', name: 'Alice Johnson', email: 'alice@company.com', department: 'engineering', role: 'employee', hireDate: new Date('2022-03-15') },
@@ -11,13 +14,13 @@ const SEED_DATA = {
     { id: 'emp3', name: 'Carol White', email: 'carol@company.com', department: 'hr', role: 'employee', hireDate: new Date('2021-09-20') },
   ],
   leaveBalances: [
-    { id: 'lb1', employeeId: 'emp1', casualLeave: 21, sickLeave: 12, earnedLeave: 18, year: 2024 },
-    { id: 'lb2', employeeId: 'emp2', casualLeave: 15, sickLeave: 8, earnedLeave: 10, year: 2024 },
-    { id: 'lb3', employeeId: 'emp3', casualLeave: 20, sickLeave: 15, earnedLeave: 16, year: 2024 },
+    { id: 'lb1', employeeId: 'emp1', casualLeave: 21, sickLeave: 12, earnedLeave: 18, year: CURRENT_YEAR },
+    { id: 'lb2', employeeId: 'emp2', casualLeave: 15, sickLeave: 8, earnedLeave: 10, year: CURRENT_YEAR },
+    { id: 'lb3', employeeId: 'emp3', casualLeave: 20, sickLeave: 15, earnedLeave: 16, year: CURRENT_YEAR },
   ],
   reimbursements: [
-    { id: 'reb1', employeeId: 'emp1', amount: 500, status: 'pending', type: 'travel', submittedAt: new Date('2024-12-15') },
-    { id: 'reb2', employeeId: 'emp3', amount: 200, status: 'approved', type: 'office_supplies', submittedAt: new Date('2024-12-10') },
+    { id: 'reb1', employeeId: 'emp1', amount: 500, status: 'pending', type: 'travel', submittedAt: daysAgo(6) },
+    { id: 'reb2', employeeId: 'emp3', amount: 200, status: 'approved', type: 'office_supplies', submittedAt: daysAgo(11) },
   ],
   policies: [
     { id: 'pol1', title: 'Remote Work Policy', category: 'remote_work', content: 'Employees may work remotely up to 3 days per week.', effectiveDate: new Date('2024-01-01'), isActive: true },
