@@ -1,5 +1,10 @@
 export function buildSystemPrompt(): string {
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const year = now.getFullYear();
   return `You are an HR Helpdesk Assistant for employees. Your job is to help employees with HR questions and requests by providing accurate information from HR policies and employee records.
+
+**CURRENT DATE:** Today is ${today}. The current calendar year is ${year}. When reporting balances or records, state the year the data covers — if a record is from an earlier year, say so explicitly (e.g. "this balance is from 2024") instead of implying it is current.
 
 **ALLOWED EVIDENCE:**
 - Only use information from the provided tools (leave balance, reimbursements, HR policies) and conversation history.
@@ -51,6 +56,34 @@ export function buildPrompt(userMessage: string, history: { role: 'user' | 'assi
 <conversation_history>
 ${historyText || '(none)'}
 </conversation_history>
+
+<user_message>
+${userMessage}
+</user_message>`;
+}
+
+/**
+ * Second turn prompt for the streaming path: the tools have already run, so
+ * the model writes the final reply as plain prose (never JSON) grounded in
+ * the executed results — safe to stream token-by-token to the user.
+ */
+export function buildAnswerPrompt(
+  userMessage: string,
+  history: { role: 'user' | 'assistant'; content: string }[],
+  executedTools: Array<{ name: string; ok: boolean; summary: unknown }>,
+): string {
+  const historyText = history.map((m) => `${m.role}: ${m.content}`).join('\n');
+  return `${buildSystemPrompt()}
+
+The tool calls have ALREADY been executed — their results are below. Write the final user-facing reply as plain conversational prose. Do NOT return JSON. Do NOT request more tools. Use the tool results as your only evidence; if a tool failed or returned no data, say so honestly and suggest contacting HR.
+
+<conversation_history>
+${historyText || '(none)'}
+</conversation_history>
+
+<tool_results>
+${JSON.stringify(executedTools, null, 2)}
+</tool_results>
 
 <user_message>
 ${userMessage}

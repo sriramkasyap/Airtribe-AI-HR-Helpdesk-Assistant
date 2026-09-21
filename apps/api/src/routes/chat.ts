@@ -30,6 +30,14 @@ function chunkString(str: string, size: number): string[] {
   return chunks;
 }
 
+function friendlyError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes('OPENROUTER_API_KEY')) {
+    return 'Assistant is not configured: missing OPENROUTER_API_KEY';
+  }
+  return 'Unable to process request';
+}
+
 router.post('/', async (req, res) => {
   try {
     const { message, sessionId, stream } = chatSchema.parse(req.body);
@@ -39,15 +47,73 @@ router.post('/', async (req, res) => {
     const activeSessionId = sessionId || (await memoryService.createSession(employeeId)).sessionId;
     if (!sessionId) res.setHeader('X-Session-Id', activeSessionId);
     await memoryService.appendMessage(activeSessionId, 'user', message);
-
-    // 1) LLM turn 1: classify + plan tool calls
     const history = await memoryService.getHistory(activeSessionId);
-    const plan = await llmService.classifyAndPlan(message, context, history);
 
-    // 2) Execute requested tools (failures captured per-call, never thrown)
+    if (stream) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      const send = (event: Record<string, unknown>) => {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      };
+
+      let full = '';
+      try {
+        // 1) LLM turn 1: classify + plan tool calls
+        send({ type: 'status', stage: 'understanding' });
+        const plan = await llmService.classifyAndPlan(message, context, history);
+
+        // 2) Execute requested tools (failures captured per-call, never thrown)
+        let executed: ExecutedTool[] = [];
+        if (plan.toolCalls.length > 0) {
+          send({ type: 'status', stage: 'tools' });
+          executed = await executeToolCalls(plan.toolCalls, context);
+          for (const tool of executed) {
+            send({ type: 'tool', name: tool.name, ok: tool.ok });
+          }
+        }
+
+        // 3) Stream the final answer token by token
+        send({ type: 'status', stage: 'composing' });
+        if (executed.length > 0) {
+          try {
+            for await (const token of llmService.streamAnswer(message, context, history, executed)) {
+              full += token;
+              send({ type: 'token', content: token });
+            }
+          } catch (error) {
+            // Streaming composition failed — fall back to the plan's own response
+            logError(error as Error, { section: 'chat', event: 'stream composition failed' });
+            full = plan.response;
+            for (const token of chunkString(full, 24)) {
+              send({ type: 'token', content: token });
+            }
+          }
+        } else {
+          // No tools needed — turn 1 already produced the complete answer
+          full = plan.response;
+          for (const token of chunkString(full, 24)) {
+            send({ type: 'token', content: token });
+          }
+        }
+
+        await memoryService.appendMessage(activeSessionId, 'assistant', full);
+        send({ type: 'suggestions', items: plan.followUpSuggestions ?? [] });
+        send({ type: 'done' });
+      } catch (error) {
+        logError(error as Error, { section: 'chat', event: 'stream failed' });
+        send({ type: 'error', message: friendlyError(error) });
+        send({ type: 'done' });
+      } finally {
+        res.end();
+      }
+      return;
+    }
+
+    // Non-streaming: same two-turn flow, structured JSON response
+    const plan = await llmService.classifyAndPlan(message, context, history);
     const executed = await executeToolCalls(plan.toolCalls, context);
 
-    // 3) LLM turn 2: compose the final answer with tool evidence
     let finalOutput = plan;
     if (executed.length > 0) {
       try {
@@ -59,19 +125,6 @@ router.post('/', async (req, res) => {
     }
 
     await memoryService.appendMessage(activeSessionId, 'assistant', finalOutput.response);
-
-    if (stream) {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      for (const token of chunkString(finalOutput.response, 24)) {
-        res.write(`data: ${JSON.stringify({ type: 'token', content: token })}\n\n`);
-      }
-      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
-      res.end();
-      return;
-    }
-
     res.json({
       success: true,
       data: {
@@ -86,10 +139,7 @@ router.post('/', async (req, res) => {
       return;
     }
     logError(error as Error, { section: 'chat' });
-    const message = error instanceof Error && error.message.includes('OPENROUTER_API_KEY')
-      ? 'Assistant is not configured: missing OPENROUTER_API_KEY'
-      : 'Unable to process request';
-    res.status(503).json({ success: false, error: { code: 'LLM_UNAVAILABLE', message } });
+    res.status(503).json({ success: false, error: { code: 'LLM_UNAVAILABLE', message: friendlyError(error) } });
   }
 });
 

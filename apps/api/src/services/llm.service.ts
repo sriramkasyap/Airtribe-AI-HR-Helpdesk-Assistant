@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { buildPrompt } from './prompt';
+import { buildAnswerPrompt, buildPrompt } from './prompt';
 import { logger } from '../utils/logger';
 
 export interface LLMOutput {
@@ -46,6 +46,55 @@ export function extractJSON(text: string): string {
   return jsonMatch[0];
 }
 
+/**
+ * Stateful parser for OpenRouter's SSE token stream. Feed it network chunks
+ * as they arrive; it reassembles `data: {...}` blocks split across chunk
+ * boundaries and returns the content deltas.
+ */
+export interface SSETokenParser {
+  push(chunk: string): string[];
+  flush(): string[];
+}
+
+export function createSSETokenParser(): SSETokenParser {
+  let buffer = '';
+  const extract = (block: string): string[] => {
+    const tokens: string[] = [];
+    for (const line of block.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === '[DONE]') continue;
+      try {
+        const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string | null } }> };
+        const token = parsed.choices?.[0]?.delta?.content;
+        if (token) tokens.push(token);
+      } catch {
+        /* skip malformed SSE lines */
+      }
+    }
+    return tokens;
+  };
+  return {
+    push(chunk: string): string[] {
+      buffer += chunk;
+      const tokens: string[] = [];
+      let idx = buffer.indexOf('\n\n');
+      while (idx !== -1) {
+        tokens.push(...extract(buffer.slice(0, idx)));
+        buffer = buffer.slice(idx + 2);
+        idx = buffer.indexOf('\n\n');
+      }
+      return tokens;
+    },
+    flush(): string[] {
+      const rest = buffer;
+      buffer = '';
+      return rest.trim() ? extract(rest) : [];
+    },
+  };
+}
+
 // z-ai/glm-5.3-flash is a hybrid reasoning model: without excluding the
 // reasoning channel it spends tokens (and wall-clock time) thinking before
 // emitting content, which both slows responses and can leave content null.
@@ -84,12 +133,21 @@ export class LLMService {
     return parseStructuredOutput(raw);
   }
 
-  async streamChat(
+  /**
+   * Second turn: stream the final user-facing answer token by token, grounded
+   * in the executed tool results. Emits plain prose (never JSON) so it can be
+   * piped straight to the client as SSE tokens.
+   */
+  async *streamAnswer(
     userMessage: string,
     _context: ToolContext,
-    history: ChatMessage[] = [],
-  ): Promise<AsyncGenerator<string>> {
-    const prompt = buildPrompt(userMessage, history);
+    history: ChatMessage[],
+    executedTools: Array<{ name: string; ok: boolean; summary: unknown }>,
+  ): AsyncGenerator<string> {
+    if (!OPENROUTER_API_KEY) {
+      throw new LLMOutputError('OpenRouter API key is not configured (set OPENROUTER_API_KEY)');
+    }
+    const prompt = buildAnswerPrompt(userMessage, history, executedTools);
     const response = await axios.post(
       `${this.baseUrl}/chat/completions`,
       {
@@ -102,6 +160,7 @@ export class LLMService {
       },
       {
         timeout: TIMEOUT_MS,
+        responseType: 'stream',
         headers: {
           Authorization: `Bearer ${OPENROUTER_API_KEY}`,
           'HTTP-Referer': FRONTEND_URL,
@@ -109,7 +168,11 @@ export class LLMService {
         },
       },
     );
-    return this._streamGenerator(String(response.data ?? ''));
+    const parser = createSSETokenParser();
+    for await (const chunk of response.data as AsyncIterable<Buffer>) {
+      for (const token of parser.push(String(chunk))) yield token;
+    }
+    for (const token of parser.flush()) yield token;
   }
 
   calculateCost(inputTokens: number, outputTokens: number): number {
@@ -174,22 +237,6 @@ export class LLMService {
       }
     }
     throw lastError ?? new Error('LLM call failed after 3 attempts');
-  }
-
-  private async *_streamGenerator(payload: string): AsyncGenerator<string> {
-    for (const line of payload.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith('data:')) continue;
-      const data = trimmed.slice(5).trim();
-      if (!data || data === '[DONE]') continue;
-      try {
-        const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
-        const token = parsed.choices?.[0]?.delta?.content;
-        if (token) yield token;
-      } catch {
-        /* skip malformed SSE lines */
-      }
-    }
   }
 
   private _delay(ms: number): Promise<void> {
