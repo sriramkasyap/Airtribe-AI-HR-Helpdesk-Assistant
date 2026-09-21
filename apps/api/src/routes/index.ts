@@ -1,12 +1,21 @@
 import { Router } from 'express';
-import { authRouter } from './auth';
-import { chatRouter } from './chat';
-import { employeeRouter } from './employee';
 
-const router = Router();
+import authRoutes from './auth';
+import chatRoutes from './chat';
+import employeeRoutes from './employee';
+import policyRoutes from './policy';
+import { authMiddleware } from '../middleware/auth';
+import { guardrailsMiddleware } from '../middleware/guardrails';
 
-router.use('/auth', authRouter);
-router.use('/chat', chatRouter);
-router.use('/', employeeRouter);
+const router: Router = Router();
 
-export { router as apiRouter };
+// Public: authentication endpoints
+router.use('/auth', authRoutes);
+
+// Protected: everything below requires a valid JWT and passes guardrails
+router.use(authMiddleware, guardrailsMiddleware);
+router.use('/chat', chatRoutes);
+router.use('/employee', employeeRoutes);
+router.use('/policy', policyRoutes);
+
+export default router;

@@ -1,20 +1,42 @@
-import mongoose, { Schema } from 'mongoose';
-import { ChatMessage } from '@ai-hr/shared-types';
+import { Schema, model, type Document, type Model } from 'mongoose';
 
-const messageSchema = new Schema<ChatMessage>({
-  role: { type: String, enum: ['user', 'assistant'], required: true },
-  content: { type: String, required: true },
-  timestamp: { type: Date, default: Date.now },
-});
+export interface StoredMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
 
-const ConversationMemorySchema = new Schema({
-  sessionId: { type: String, required: true, unique: true },
-  userId: { type: String, required: true },
-  messages: [messageSchema],
-  updatedAt: { type: Date, default: Date.now },
-  expiresAt: Date,
-}, { timestamps: true });
+export interface ConversationMemoryDoc extends Document {
+  id: string;
+  sessionId: string;
+  userId: string;
+  messages: StoredMessage[];
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-ConversationMemorySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+const messageSchema = new Schema<StoredMessage>(
+  {
+    role: { type: String, enum: ['user', 'assistant'], required: true },
+    content: { type: String, required: true },
+    timestamp: { type: Date, required: true },
+  },
+  { _id: false },
+);
 
-export const ConversationMemoryModel = mongoose.model('ConversationMemory', ConversationMemorySchema);
+const schema = new Schema<ConversationMemoryDoc>(
+  {
+    id: { type: String, required: true, unique: true },
+    sessionId: { type: String, required: true, index: true },
+    userId: { type: String, ref: 'Employee', required: true },
+    messages: { type: [messageSchema], default: [] },
+    expiresAt: { type: Date, required: true },
+  },
+  { timestamps: true },
+);
+
+export const ConversationMemoryModel: Model<ConversationMemoryDoc> = model<ConversationMemoryDoc>(
+  'ConversationMemory',
+  schema,
+);

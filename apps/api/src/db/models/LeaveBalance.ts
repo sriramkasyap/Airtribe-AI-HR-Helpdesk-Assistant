@@ -1,14 +1,26 @@
-import mongoose, { Schema } from 'mongoose';
-import { LeaveBalance } from '@ai-hr/shared-types';
+import { Schema, model, type Document, type Model } from 'mongoose';
 
-const LeaveBalanceSchema = new Schema<LeaveBalance>({
-  employee: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
-  casualLeave: { type: Number, default: 21 },
-  sickLeave: { type: Number, default: 12 },
-  earnedLeave: { type: Number, default: 18 },
-  year: { type: Number, required: true },
-}, { timestamps: true });
+export interface LeaveBalanceDoc extends Document {
+  id: string;
+  employeeId: string;
+  casualLeave: number;
+  sickLeave: number;
+  earnedLeave: number;
+  year: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-LeaveBalanceSchema.index({ employee: 1, year: 1 }, { unique: true });
+const schema = new Schema<LeaveBalanceDoc>(
+  {
+    id: { type: String, required: true, unique: true },
+    employeeId: { type: String, ref: 'Employee', required: true, index: true },
+    casualLeave: { type: Number, default: 0 },
+    sickLeave: { type: Number, default: 0 },
+    earnedLeave: { type: Number, default: 0 },
+    year: { type: Number, required: true },
+  },
+  { timestamps: true },
+);
 
-export const LeaveBalanceModel = mongoose.model<LeaveBalance>('LeaveBalance', LeaveBalanceSchema);
+export const LeaveBalanceModel: Model<LeaveBalanceDoc> = model<LeaveBalanceDoc>('LeaveBalance', schema);

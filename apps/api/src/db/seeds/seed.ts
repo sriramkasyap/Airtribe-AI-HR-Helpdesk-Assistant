@@ -1,95 +1,45 @@
-#!/usr/bin/env tsx
+import mongoose from 'mongoose';
+import { EmployeeModel } from '../models/Employee';
+import { LeaveBalanceModel } from '../models/LeaveBalance';
+import { ReimbursementModel } from '../models/Reimbursement';
+import { HRPolicyModel } from '../models/HRPolicy';
 
-import { connectDB } from './db/connection';
-import { EmployeeModel, LeaveBalanceModel, ReimbursementModel, HRPolicyModel } from './db/models';
+const SEED_DATA = {
+  employees: [
+    { id: 'emp1', name: 'Alice Johnson', email: 'alice@company.com', department: 'engineering', role: 'employee', hireDate: new Date('2022-03-15') },
+    { id: 'emp2', name: 'Bob Smith', email: 'bob@company.com', department: 'engineering', role: 'manager', hireDate: new Date('2020-06-01') },
+    { id: 'emp3', name: 'Carol White', email: 'carol@company.com', department: 'hr', role: 'employee', hireDate: new Date('2021-09-20') },
+  ],
+  leaveBalances: [
+    { id: 'lb1', employeeId: 'emp1', casualLeave: 21, sickLeave: 12, earnedLeave: 18, year: 2024 },
+    { id: 'lb2', employeeId: 'emp2', casualLeave: 15, sickLeave: 8, earnedLeave: 10, year: 2024 },
+    { id: 'lb3', employeeId: 'emp3', casualLeave: 20, sickLeave: 15, earnedLeave: 16, year: 2024 },
+  ],
+  reimbursements: [
+    { id: 'reb1', employeeId: 'emp1', amount: 500, status: 'pending', type: 'travel', submittedAt: new Date('2024-12-15') },
+    { id: 'reb2', employeeId: 'emp3', amount: 200, status: 'approved', type: 'office_supplies', submittedAt: new Date('2024-12-10') },
+  ],
+  policies: [
+    { id: 'pol1', title: 'Remote Work Policy', category: 'remote_work', content: 'Employees may work remotely up to 3 days per week.', effectiveDate: new Date('2024-01-01'), isActive: true },
+    { id: 'pol2', title: 'Code of Conduct', category: 'conduct', content: 'All employees must follow the company code of conduct.', effectiveDate: new Date('2024-01-01'), isActive: true },
+    { id: 'pol3', title: 'PTO Policy', category: 'leave', content: 'Employees are entitled to PTO based on their tenure.', effectiveDate: new Date('2024-01-01'), isActive: true },
+  ],
+};
 
-async function seed() {
-  try {
-    await connectDB();
-    console.log('Database connected for seeding');
+export async function seedDatabase(): Promise<void> {
+  await Promise.all([
+    EmployeeModel.deleteMany({}),
+    LeaveBalanceModel.deleteMany({}),
+    ReimbursementModel.deleteMany({}),
+    HRPolicyModel.deleteMany({}),
+  ]);
 
-    // Clear existing data
-    await EmployeeModel.deleteMany({});
-    await LeaveBalanceModel.deleteMany({});
-    await ReimbursementModel.deleteMany({});
-    await HRPolicyModel.deleteMany({});
-    console.log('Cleared existing data');
+  await Promise.all([
+    EmployeeModel.insertMany(SEED_DATA.employees),
+    LeaveBalanceModel.insertMany(SEED_DATA.leaveBalances),
+    ReimbursementModel.insertMany(SEED_DATA.reimbursements),
+    HRPolicyModel.insertMany(SEED_DATA.policies),
+  ]);
 
-    // Seed Employees
-    const employees = [
-      {
-        name: 'Alice Johnson',
-        email: 'alice@company.com',
-        department: 'Engineering',
-        role: 'employee',
-        hireDate: '2023-01-15'
-      },
-      {
-        name: 'Bob Smith',
-        email: 'bob@company.com',
-        department: 'Sales',
-        role: 'manager',
-        hireDate: '2022-06-10'
-      },
-      {
-        name: 'Carol Lee',
-        email: 'carol@company.com',
-        department: 'HR',
-        role: 'employee',
-        hireDate: '2024-03-20'
-      }
-    ];
-
-    const employeeDocs = await EmployeeModel.insertMany(employees);
-    console.log(`Seeded ${employeeDocs.length} employees`);
-
-    // Seed Leave Balances
-    const leaveBalances = employeeDocs.map(emp => ({
-      employee: emp._id,
-      casualLeave: 21,
-      sickLeave: 12,
-      earnedLeave: 18,
-      year: 2024
-    }));
-
-    await LeaveBalanceModel.insertMany(leaveBalances);
-    console.log(`Seeded ${leaveBalances.length} leave balances`);
-
-    // Seed HR Policies
-    const hrPolicies = [
-      {
-        title: 'Work From Home Policy',
-        category: 'Remote Work',
-        content: 'Employees may work from home up to 3 days per week with manager approval.',
-        effectiveDate: '2024-01-01',
-        isActive: true
-      },
-      {
-        title: 'Expense Reimbursement Policy',
-        category: 'Finance',
-        content: 'All business expenses must be submitted within 30 days of incurring them. Reimbursement is processed within 5 business days of approval.',
-        effectiveDate: '2024-01-01',
-        isActive: true
-      },
-      {
-        title: 'Paid Time Off Policy',
-        category: 'Leave',
-        content: 'Employees accrue 21 casual leave days and 12 sick leave days per year. Earned leave accrues at 1.5 days per month.',
-        effectiveDate: '2024-01-01',
-        isActive: true
-      }
-    ];
-
-    await HRPolicyModel.insertMany(hrPolicies);
-    console.log(`Seeded ${hrPolicies.length} HR policies`);
-
-    console.log('Database seeding completed successfully');
-  } catch (error) {
-    console.error('Database seeding failed:', error);
-    process.exit(1);
-  } finally {
-    process.exit(0);
-  }
+  console.log('Database seeded successfully');
 }
-
-seed();

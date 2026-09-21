@@ -1,27 +1,33 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { SignJWT } from 'jose';
-import { logger } from '../utils/logger';
+import { logger, logError } from '../utils/logger';
 
 const loginSchema = z.object({ employeeId: z.string().min(1) });
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
+const TOKEN_TTL_SECONDS = 2 * 60 * 60;
 
-const router = Router();
+const router: Router = Router();
 
 router.post('/login', async (req, res) => {
   try {
     const { employeeId } = loginSchema.parse(req.body);
     const secret = new TextEncoder().encode(JWT_SECRET);
-    const token = await new SignJWT({ employeeId })
+    const token = await new SignJWT({ employeeId, role: 'employee' })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
-      .setExpirationTime('2h')
+      .setExpirationTime(`${TOKEN_TTL_SECONDS}s`)
       .sign(secret);
-    res.json({ success: true, data: { token, expiresAt: Date.now() + 2 * 60 * 60 * 1000 } });
+    res.json({ success: true, data: { token, expiresAt: Date.now() + TOKEN_TTL_SECONDS * 1000 } });
   } catch (error) {
-    logger.error(error, { section: 'auth', operation: 'login' });
-    res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid login request' } });
+    if (error instanceof z.ZodError) {
+      logger.warn({ issues: error.issues }, 'Login validation failed');
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'employeeId is required' } });
+      return;
+    }
+    logError(error as Error, { section: 'auth', operation: 'login' });
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Login failed' } });
   }
 });
 
-export { router as authRouter };
+export default router;

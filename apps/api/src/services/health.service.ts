@@ -1,11 +1,11 @@
-import { ConversationMemoryModel } from '../db/models';
+import mongoose from 'mongoose';
 
 export async function healthCheck(): Promise<{ status: string; checks: Record<string, { status: string; detail?: string }>; timestamp: string; uptime: number }> {
   const checks: Record<string, { status: string; detail?: string }> = {};
 
   try {
-    const dbState = await ConversationMemoryModel.db.db.serverConfig?.topology?.isConnected?.();
-    checks.database = { status: dbState ? 'healthy' : 'unhealthy', detail: 'MongoDB' };
+    const dbState = mongoose.connection.readyState;
+    checks.database = { status: dbState === 1 ? 'healthy' : 'unhealthy', detail: 'MongoDB' };
   } catch (error) {
     checks.database = { status: 'unhealthy', detail: (error as Error).message };
   }

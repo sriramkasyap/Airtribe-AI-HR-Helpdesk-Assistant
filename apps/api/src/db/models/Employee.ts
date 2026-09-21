@@ -1,12 +1,26 @@
-import mongoose, { Schema } from 'mongoose';
-import { Employee } from '@ai-hr/shared-types';
+import { Schema, model, type Document, type Model } from 'mongoose';
 
-const EmployeeSchema = new Schema<Employee>({
-  name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  department: { type: String, required: true },
-  role: { type: String, enum: ['employee', 'manager'], default: 'employee' },
-  hireDate: Date,
-}, { timestamps: true });
+export interface EmployeeDoc extends Document {
+  id: string;
+  name: string;
+  email: string;
+  department: string;
+  role: 'employee' | 'manager';
+  hireDate: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-export const EmployeeModel = mongoose.model<Employee>('Employee', EmployeeSchema);
+const schema = new Schema<EmployeeDoc>(
+  {
+    id: { type: String, required: true, unique: true },
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    department: { type: String, required: true },
+    role: { type: String, enum: ['employee', 'manager'], required: true },
+    hireDate: { type: Date, required: true },
+  },
+  { timestamps: true },
+);
+
+export const EmployeeModel: Model<EmployeeDoc> = model<EmployeeDoc>('Employee', schema);

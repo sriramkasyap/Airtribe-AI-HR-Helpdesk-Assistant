@@ -1,41 +1,53 @@
-import { ConversationMemoryModel } from '../db/models';
-import { logger } from '../utils/logger';
+import { randomUUID } from 'crypto';
+import { ConversationMemoryModel } from '../db/models/ConversationMemory';
+import type { StoredMessage } from '../db/models/ConversationMemory';
 
-const SESSION_TTL_HOURS = parseInt(process.env.SESSION_TTL_HOURS || '24', 10);
+export interface MemoryChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface StoredConversation {
+  id: string;
+  sessionId: string;
+  userId: string;
+  messages: StoredMessage[];
+  expiresAt?: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 export class MemoryService {
-  async createSession(userId: string): Promise<{ sessionId: string }> {
-    const sessionId = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + SESSION_TTL_HOURS * 60 * 60 * 1000);
-    await ConversationMemoryModel.create({ sessionId, userId, messages: [], expiresAt });
-    logger.info({ sessionId, userId }, 'Session created');
-    return { sessionId };
+  async createSession(userId: string): Promise<StoredConversation> {
+    const created = await ConversationMemoryModel.create({
+      id: randomUUID(),
+      sessionId: randomUUID(),
+      userId,
+      messages: [],
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+    });
+    return created.toObject() as StoredConversation;
+  }
+
+  async getConversation(sessionId: string): Promise<StoredConversation | null> {
+    return (await ConversationMemoryModel.findOne({ sessionId }).lean()) as StoredConversation | null;
   }
 
   async appendMessage(sessionId: string, role: 'user' | 'assistant', content: string): Promise<void> {
     await ConversationMemoryModel.updateOne(
       { sessionId },
-      { $push: { messages: { role, content, timestamp: new Date() } }, updatedAt: new Date() }
+      { $push: { messages: { role, content, timestamp: new Date() } } },
     );
   }
 
-  async getHistory(sessionId: string, limit: number = 20): Promise<{ role: 'user' | 'assistant'; content: string; timestamp: string }[]> {
-    const session = await ConversationMemoryModel.findOne({ sessionId }).sort({ updatedAt: -1 });
-    if (!session) return [];
-    return (session.messages || []).slice(-limit).map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-      timestamp: m.timestamp.toISOString(),
-    }));
+  async getHistory(sessionId: string): Promise<MemoryChatMessage[]> {
+    const conversation = await this.getConversation(sessionId);
+    return (conversation?.messages ?? []).map((m) => ({ role: m.role, content: m.content }));
   }
 
-  async cleanupExpired(): Promise<number> {
-    const result = await ConversationMemoryModel.deleteMany({ expiresAt: { $lt: new Date() } });
-    logger.info({ deleted: result.deletedCount }, 'Cleaned up expired sessions');
-    return result.deletedCount;
-  }
-
-  async getSessionCount(): Promise<number> {
-    return ConversationMemoryModel.countDocuments();
+  async expireConversations(): Promise<void> {
+    await ConversationMemoryModel.deleteMany({ expiresAt: { $lt: new Date() } });
   }
 }

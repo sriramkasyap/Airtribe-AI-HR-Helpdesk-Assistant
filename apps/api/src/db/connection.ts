@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { logger } from '../utils/logger';
+import { logger, logError } from '../utils/logger';
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/hr-helpdesk';
 
@@ -8,10 +8,10 @@ export async function connectDB(): Promise<void> {
     await mongoose.connect(MONGODB_URI);
     logger.info({ uri: MONGODB_URI }, 'Connected to MongoDB');
   } catch (error) {
-    logger.error(error, { uri: MONGODB_URI }, 'MongoDB connection failed');
+    logError(error as Error, { uri: MONGODB_URI, event: 'MongoDB connection failed' });
     throw error;
   }
-  mongoose.connection.on('error', (err) => logger.error(err, 'MongoDB connection error'));
+  mongoose.connection.on('error', (err: Error) => logError(err, { event: 'MongoDB connection error' }));
   mongoose.connection.on('disconnected', () => logger.warn('MongoDB disconnected'));
   mongoose.connection.on('reconnected', () => logger.info('MongoDB reconnected'));
 }
