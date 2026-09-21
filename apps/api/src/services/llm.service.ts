@@ -46,12 +46,17 @@ export function extractJSON(text: string): string {
   return jsonMatch[0];
 }
 
+// z-ai/glm-5.3-flash is a hybrid reasoning model: without excluding the
+// reasoning channel it spends tokens (and wall-clock time) thinking before
+// emitting content, which both slows responses and can leave content null.
+const REQUEST_OPTIONS = { reasoning: { exclude: true } } as const;
+
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const MODEL = process.env.OPENROUTER_MODEL || 'z-ai/glm-5.3-flash';
 const TEMPERATURE = 0.3;
 const MAX_TOKENS = 4096;
-const TIMEOUT_MS = 30000;
+const TIMEOUT_MS = 120000;
 const INPUT_RATE = 0.002 / 1_000_000;
 const OUTPUT_RATE = 0.004 / 1_000_000;
 const MAX_ATTEMPTS = 3;
@@ -93,6 +98,7 @@ export class LLMService {
         stream: true,
         temperature: TEMPERATURE,
         max_tokens: MAX_TOKENS,
+        ...REQUEST_OPTIONS,
       },
       {
         timeout: TIMEOUT_MS,
@@ -147,6 +153,7 @@ export class LLMService {
             messages: [{ role: 'system', content: prompt }],
             temperature: TEMPERATURE,
             max_tokens: MAX_TOKENS,
+            ...REQUEST_OPTIONS,
           },
           {
             timeout: TIMEOUT_MS,
