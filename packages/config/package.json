@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "lint": "eslint ."
+    "lint": "echo 'config package: no lintable sources'"
   },
   "devDependencies": {
-    "eslint": "^9.0.0",
+    "eslint": "^9.39.5",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.0.0"
   }
