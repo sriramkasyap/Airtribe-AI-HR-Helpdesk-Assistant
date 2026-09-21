@@ -1,5 +1,13 @@
 # Decision log
 
+## 2026-09-21 18:31 — Ponytail audit: strip dead code and lockfile bloat
+
+| Confidence | Decision | Where | Reasoning | Spec link |
+|---|---|---|---|---|
+| Medium | Left `LLMOutput` defined in both shared-types and `llm.service` rather than forcing one import | `llm.service.ts`, `shared-types` | Service uses a slightly tighter classification union at parse time; merging now risks a wider type churn for little line savings | unlinked |
+| High | Deleted unused helpers/utils/barrels, `sendChat`, logger wrappers, `calculateCost`, `concurrently`, root jest + npm/nested lockfiles | repo-wide | Verified zero callers via grep; pnpm workspace already owns the root lockfile | linked |
+| High | One `unauthorizedIfOtherEmployee` helper + tools `ToolContext` re-export from shared-types | `tools/access.ts`, `tools/types.ts` | Three tools repeated the same manager gate; `models` on ToolContext was never populated | linked |
+
 ## 2026-09-21 18:12 — Fix manager leave-balance access
 
 | Confidence | Decision | Where | Reasoning | Spec link |
