@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { jwtVerify, createRemoteJWKSet } from 'jose';
+import { jwtVerify } from 'jose';
 import { logger } from '../utils/logger';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';

@@ -141,8 +141,9 @@ curl -s http://localhost:3000/health
    - “What is the remote work policy?”
    - “Show my reimbursement status”
 4. As **manager** `emp2`, try: “What is Alice’s leave balance?”
+5. As **manager** `emp2`, open the **Policies** tab to view, add, edit, or delete HR policies (employees do not see this tab).
 
-Log out from the chat header when switching users (JWT is stored in `localStorage` as `hr_token`). After role/seed changes, log out and log back in so you get a fresh token.
+Log out from the header when switching users (JWT + role are stored in `localStorage` as `hr_token` / `hr_role`). After role/seed changes, log out and log back in so you get a fresh token.
 
 ---
 
@@ -187,6 +188,9 @@ SSE events include `status`, `tool`, `token`, `suggestions`, and `done`.
 | `GET` | `/api/v1/employee/:id` | Yes | Profile (managers can view others) |
 | `GET` | `/api/v1/policy` | Yes | List policies (`?topic=leave`) |
 | `GET` | `/api/v1/policy/:id` | Yes | Policy by id |
+| `POST` | `/api/v1/policy` | Manager | Create policy |
+| `PATCH` | `/api/v1/policy/:id` | Manager | Update policy |
+| `DELETE` | `/api/v1/policy/:id` | Manager | Delete policy |
 | `GET` | `/health` | No | Liveness / DB check |
 
 ---

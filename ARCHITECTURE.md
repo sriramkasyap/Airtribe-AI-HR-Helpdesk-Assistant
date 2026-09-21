@@ -112,13 +112,14 @@ flowchart TB
   API --> AuthPub{"route?"}
   AuthPub -->|/auth/*| AuthRoutes["POST /login<br/>public"]
   AuthPub -->|other| Gate["authMiddleware<br/>JWT Bearer"]
-  Gate --> Guard["guardrailsMiddleware"]
+  Gate --> Guard["guardrailsMiddleware<br/>scans body.message only"]
   Guard --> Protected
 
   subgraph Protected["Protected routes"]
     Chat["POST /chat"]
     Emp["GET /employee<br/>GET /employee/:id"]
     Pol["GET /policy<br/>GET /policy/:id"]
+    PolWrite["POST/PATCH/DELETE /policy<br/>requireManager"]
   end
 
   AuthRoutes --> EmployeeLookup["EmployeeModel.findOne"]
@@ -144,15 +145,15 @@ sequenceDiagram
     Auth-->>Web: 401 Unknown employee ID
   else found
     Note over Auth: role comes from DB<br/>employee | manager
-    Auth-->>Web: { token, expiresAt }
-    Web->>Web: localStorage hr_token
+    Auth-->>Web: { token, expiresAt, role }
+    Web->>Web: localStorage hr_token + hr_role
   end
 
   User->>Web: Ask HR question
   Web->>Chat: Authorization: Bearer JWT
   Chat->>Chat: Verify JWT → req.user<br/>{ employeeId, role }
 
-  Note over Chat: employee → own records only<br/>manager → others by id or name
+  Note over Chat: employee → own records only<br/>manager → others by id or name<br/>manager UI → Policies tab CRUD
 ```
 
 ---
@@ -336,14 +337,19 @@ flowchart TB
 
   App --> Guest["GuestOnly<br/>redirect if token"]
   App --> Req["RequireAuth<br/>redirect if no token"]
+  App --> Mgr["RequireManager<br/>role === manager"]
 
   Guest --> LoginPage["Login.tsx"]
   Req --> ChatPage["Chat.tsx"]
+  Mgr --> PoliciesPage["Policies.tsx"]
 
-  LoginPage --> LoginAPI["login() → setToken"]
+  LoginPage --> LoginAPI["login() → setToken + setRole"]
+  ChatPage --> Shell["AppShell<br/>Policies nav if manager"]
+  PoliciesPage --> Shell
   ChatPage --> Stream["streamChat()"]
   ChatPage --> MD["MarkdownContent<br/>react-markdown + GFM"]
-  ChatPage --> Logout["clearToken → /login"]
+  PoliciesPage --> PolicyAPI["list/create/update/deletePolicy"]
+  Shell --> Logout["clearToken → /login"]
 
   Stream --> Fetch["fetch /api/v1/chat"]
   Fetch --> Parse["streamChatResponse<br/>status | tool | token | suggestions | error"]
@@ -375,9 +381,10 @@ flowchart LR
     Helmet
     RateLimit
     JWT["JWT verification"]
-    Guardrails["guardrailsMiddleware<br/>prompt injection patterns"]
+    Guardrails["guardrailsMiddleware<br/>chat message text only"]
     Zod["zod request schemas"]
     ToolAuth["per-tool manager gate"]
+    MgrRoute["requireManager on policy writes"]
   end
 
   subgraph Observability

@@ -1,5 +1,15 @@
 # Decision log
 
+## 2026-09-21 19:20 — Manager-only HR policies tab + CRUD
+
+| Confidence | Decision | Where | Reasoning | Spec link |
+|---|---|---|---|---|
+| Low | Hard-delete policies instead of soft-delete / archive | `policy.ts` DELETE | User asked to delete; no archive requirement was stated | unlinked |
+| Medium | Store role in `localStorage` (`hr_role`) from login response rather than decoding JWT on the client | `client.ts`, `AppShell`, `RequireManager` | Login already returns `role`; avoids adding a JWT parser just for nav gating | partially linked |
+| Medium | Shared `AppShell` for Chat + Policies with manager-only Policies nav | `AppShell.tsx` | Keeps header/logout consistent without duplicating chrome | unlinked |
+| High | Gate writes with `requireManager` on POST/PATCH/DELETE; GET stays any authenticated user | `policy.ts`, `requireManager.ts` | Matches chat-tool read access while restricting management to managers | linked |
+| High | Guardrails scan only `req.body.message`, not method/path | `guardrails.ts` | `/delete/i` previously blocked legitimate `DELETE /policy/:id` | linked |
+
 ## 2026-09-21 18:31 — Ponytail audit: strip dead code and lockfile bloat
 
 | Confidence | Decision | Where | Reasoning | Spec link |

@@ -2,7 +2,8 @@ import type { ReactElement } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Chat from './pages/Chat';
-import { getToken } from './api/client';
+import Policies from './pages/Policies';
+import { getRole, getToken } from './api/client';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   if (!getToken()) return <Navigate to="/login" replace />;
@@ -12,6 +13,12 @@ function RequireAuth({ children }: { children: ReactElement }) {
 /** Must be a route element so getToken() re-runs on navigation (not baked into App render). */
 function GuestOnly({ children }: { children: ReactElement }) {
   if (getToken()) return <Navigate to="/" replace />;
+  return children;
+}
+
+function RequireManager({ children }: { children: ReactElement }) {
+  if (!getToken()) return <Navigate to="/login" replace />;
+  if (getRole() !== 'manager') return <Navigate to="/" replace />;
   return children;
 }
 
@@ -32,6 +39,14 @@ export function AppRoutes() {
           <RequireAuth>
             <Chat />
           </RequireAuth>
+        }
+      />
+      <Route
+        path="/policies"
+        element={
+          <RequireManager>
+            <Policies />
+          </RequireManager>
         }
       />
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AppRoutes } from './App';
-import { getToken, setToken } from './api/client';
+import { getToken, setToken, setRole } from './api/client';
 
 const store = new Map<string, string>();
 
@@ -23,6 +23,7 @@ afterEach(() => {
 describe('AppRoutes auth redirects', () => {
   it('stays on login after logout instead of looping with root', async () => {
     setToken('session-token');
+    setRole('employee');
 
     render(
       <MemoryRouter initialEntries={['/']}>
@@ -45,6 +46,7 @@ describe('AppRoutes auth redirects', () => {
 
   it('redirects authenticated users away from /login', () => {
     setToken('session-token');
+    setRole('employee');
 
     render(
       <MemoryRouter initialEntries={['/login']}>
@@ -54,5 +56,40 @@ describe('AppRoutes auth redirects', () => {
 
     expect(screen.getByRole('button', { name: /log out/i })).toBeTruthy();
     expect(screen.queryByLabelText(/employee id/i)).toBeNull();
+  });
+
+  it('shows Policies nav for managers and hides it for employees', () => {
+    setToken('session-token');
+    setRole('manager');
+
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppRoutes />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('link', { name: /policies/i })).toBeTruthy();
+    unmount();
+
+    setRole('employee');
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppRoutes />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole('link', { name: /policies/i })).toBeNull();
+  });
+
+  it('redirects non-managers away from /policies', () => {
+    setToken('session-token');
+    setRole('employee');
+
+    render(
+      <MemoryRouter initialEntries={['/policies']}>
+        <AppRoutes />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByTestId('message-list')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: /^policies$/i })).toBeNull();
   });
 });

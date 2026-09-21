@@ -28,7 +28,15 @@ router.post('/login', async (req, res) => {
       .setIssuedAt()
       .setExpirationTime(`${TOKEN_TTL_SECONDS}s`)
       .sign(secret);
-    res.json({ success: true, data: { token, expiresAt: Date.now() + TOKEN_TTL_SECONDS * 1000 } });
+    res.json({
+      success: true,
+      data: {
+        token,
+        expiresAt: Date.now() + TOKEN_TTL_SECONDS * 1000,
+        employeeId: employee.id,
+        role: employee.role,
+      },
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       logger.warn({ issues: error.issues }, 'Login validation failed');

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearToken, streamChat } from '../api/client';
+import AppShell from '../components/AppShell';
 import MarkdownContent from '../components/MarkdownContent';
 
 interface Message {
@@ -109,28 +110,13 @@ export default function Chat() {
     void send();
   }
 
-  function logout() {
-    clearToken();
-    navigate('/login', { replace: true });
-  }
-
   const lastAssistant =
     messages.length > 0 && messages[messages.length - 1].role === 'assistant'
       ? messages[messages.length - 1]
       : null;
 
   return (
-    <div className="chat-page">
-      <header className="chat-header">
-        <div className="chat-brand">
-          <h1>HR Helpdesk Assistant</h1>
-          <p>Ask about leave, policies, and reimbursements</p>
-        </div>
-        <button type="button" className="ghost-btn" onClick={logout}>
-          Log out
-        </button>
-      </header>
-
+    <AppShell title="HR Helpdesk Assistant" subtitle="Ask about leave, policies, and reimbursements">
       <div className="chat-panel">
         <div data-testid="message-list" className="message-list" role="log" aria-live="polite">
           {messages.length === 0 && (
@@ -211,6 +197,6 @@ export default function Chat() {
           </div>
         </form>
       </div>
-    </div>
+    </AppShell>
   );
 }

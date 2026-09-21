@@ -61,7 +61,8 @@ button:disabled {
   flex-direction: column;
 }
 
-.chat-page {
+.chat-page,
+.app-page {
   width: min(860px, 100%);
   margin: 0 auto;
   padding: 20px 16px 28px;
@@ -71,11 +72,52 @@ button:disabled {
   min-height: 100vh;
 }
 
-.chat-header {
+.chat-header,
+.app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.brand-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.app-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.nav-link {
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.nav-link:hover {
+  color: var(--ink);
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.nav-link.active {
+  color: var(--sea-deep);
+  border-color: var(--sea);
+  background: rgba(15, 107, 102, 0.08);
 }
 
 .chat-brand {
@@ -430,12 +472,174 @@ button:disabled {
   width: 100%;
 }
 
+.policies-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.policies-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.policies-toolbar h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+
+.policy-form {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) + 2px);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.policy-form h3 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+}
+
+.policy-form label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.policy-form input,
+.policy-form textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  margin-bottom: 8px;
+}
+
+.policy-content {
+  resize: vertical;
+  min-height: 140px;
+}
+
+.policy-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.checkbox-label input {
+  width: auto;
+  margin: 0;
+}
+
+.policy-form-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.policy-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.policy-card {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) + 2px);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+}
+
+.policy-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.policy-card h3 {
+  margin: 0 0 6px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.policy-meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.policy-chip {
+  background: rgba(15, 107, 102, 0.1);
+  color: var(--sea-deep);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-weight: 700;
+}
+
+.policy-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  opacity: 0.75;
+}
+
+.policy-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.policy-preview {
+  margin: 12px 0 0;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.danger-btn {
+  color: var(--danger);
+  border-color: rgba(180, 35, 24, 0.35);
+}
+
+.danger-btn:hover {
+  border-color: var(--danger);
+  background: rgba(180, 35, 24, 0.06);
+}
+
 @media (max-width: 640px) {
   .bubble {
     max-width: 92%;
   }
 
-  .chat-header {
+  .chat-header,
+  .app-header {
     align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .policy-card-head {
+    flex-direction: column;
   }
 }

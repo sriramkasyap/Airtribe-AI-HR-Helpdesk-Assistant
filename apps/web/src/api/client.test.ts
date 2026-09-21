@@ -1,5 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getToken, setToken, clearToken, authHeader, login, streamChat } from './client';
+import {
+  getToken,
+  setToken,
+  clearToken,
+  authHeader,
+  login,
+  streamChat,
+  getRole,
+  listPolicies,
+  createPolicy,
+  deletePolicy,
+} from './client';
 
 // In-memory localStorage stub — keeps these tests independent of the DOM environment
 const store = new Map<string, string>();
@@ -34,6 +45,7 @@ describe('token storage', () => {
     expect(getToken()).toBe('abc');
     clearToken();
     expect(getToken()).toBeNull();
+    expect(getRole()).toBeNull();
   });
 
   it('authHeader includes the bearer token when set', () => {
@@ -52,15 +64,23 @@ describe('login', () => {
       'fetch',
       vi.fn(
         async () =>
-          new Response(JSON.stringify({ success: true, data: { token: 'tok', expiresAt: 123 } }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          }),
+          new Response(
+            JSON.stringify({
+              success: true,
+              data: { token: 'tok', expiresAt: 123, employeeId: 'emp1', role: 'employee' },
+            }),
+            {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          ),
       ),
     );
     const data = await login('emp1');
     expect(data.token).toBe('tok');
+    expect(data.role).toBe('employee');
     expect(getToken()).toBe('tok');
+    expect(getRole()).toBe('employee');
     expect(fetch).toHaveBeenCalledWith('/api/v1/auth/login', expect.objectContaining({ method: 'POST' }));
   });
 
@@ -82,6 +102,68 @@ describe('login', () => {
   it('falls back to a generic message when the body has no error details', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('oops', { status: 500 })));
     await expect(login('emp1')).rejects.toThrow('Login failed');
+  });
+});
+
+describe('policy client', () => {
+  it('lists policies', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: true,
+              data: [
+                {
+                  id: 'pol1',
+                  title: 'Leave',
+                  category: 'leave',
+                  content: '…',
+                  effectiveDate: '2024-01-01',
+                  isActive: true,
+                },
+              ],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+      ),
+    );
+    setToken('tok');
+    const policies = await listPolicies();
+    expect(policies).toHaveLength(1);
+    expect(policies[0].id).toBe('pol1');
+  });
+
+  it('creates a policy and surfaces manager-only 403', async () => {
+    setToken('tok');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ success: true, data: { id: 'pol-x', title: 'T', category: 'c', content: 'x', effectiveDate: '2024-01-01', isActive: true } }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+      ),
+    );
+    const created = await createPolicy({ title: 'T', category: 'c', content: 'x' });
+    expect(created.id).toBe('pol-x');
+
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 403 })));
+    await expect(createPolicy({ title: 'T', category: 'c', content: 'x' })).rejects.toThrow(
+      'Manager role required',
+    );
+  });
+
+  it('deletes a policy', async () => {
+    setToken('tok');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 200 })));
+    await expect(deletePolicy('pol1')).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/policy/pol1',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
   });
 });
 

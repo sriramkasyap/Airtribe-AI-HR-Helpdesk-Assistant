@@ -1,6 +1,9 @@
 import { streamChatResponse } from './sse';
 
 const TOKEN_KEY = 'hr_token';
+const ROLE_KEY = 'hr_role';
+
+export type UserRole = 'employee' | 'manager';
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -10,8 +13,18 @@ export function setToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
 }
 
+export function getRole(): UserRole | null {
+  const role = localStorage.getItem(ROLE_KEY);
+  return role === 'manager' || role === 'employee' ? role : null;
+}
+
+export function setRole(role: UserRole): void {
+  localStorage.setItem(ROLE_KEY, role);
+}
+
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(ROLE_KEY);
 }
 
 export function authHeader(): Record<string, string> {
@@ -22,7 +35,26 @@ export function authHeader(): Record<string, string> {
 export interface LoginResult {
   token: string;
   expiresAt: number;
+  employeeId: string;
+  role: UserRole;
 }
+
+export interface HRPolicy {
+  id: string;
+  title: string;
+  category: string;
+  content: string;
+  effectiveDate: string;
+  isActive: boolean;
+}
+
+export type PolicyInput = {
+  title: string;
+  category: string;
+  content: string;
+  effectiveDate?: string;
+  isActive?: boolean;
+};
 
 export interface StreamHandlers {
   onStatus?: (stage: string) => void;
@@ -30,6 +62,16 @@ export interface StreamHandlers {
   onToken?: (content: string) => void;
   onSuggestions?: (items: string[]) => void;
   onSessionId?: (sessionId: string) => void;
+}
+
+async function readJsonError(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = (await res.json()) as { error?: { message?: string } };
+    if (data.error?.message) return data.error.message;
+  } catch {
+    /* keep fallback */
+  }
+  return fallback;
 }
 
 /**
@@ -47,14 +89,7 @@ export async function streamChat(
   });
   if (res.status === 401) throw new Error('UNAUTHORIZED');
   if (!res.ok) {
-    let message = `Chat request failed (${res.status})`;
-    try {
-      const data = (await res.json()) as { error?: { message?: string } };
-      if (data.error?.message) message = data.error.message;
-    } catch {
-      /* keep default message */
-    }
-    throw new Error(message);
+    throw new Error(await readJsonError(res, `Chat request failed (${res.status})`));
   }
   const sessionId = res.headers.get('X-Session-Id');
   if (sessionId) handlers.onSessionId?.(sessionId);
@@ -81,12 +116,59 @@ export async function login(employeeId: string): Promise<LoginResult> {
   try {
     body = await res.json();
   } catch {
-    // Non-JSON response (e.g. proxy/gateway error page)
     throw new Error('Login failed');
   }
   if (!res.ok || !body.success || !body.data) {
     throw new Error(body.error?.message || 'Login failed');
   }
   setToken(body.data.token);
+  setRole(body.data.role);
   return body.data;
+}
+
+export async function listPolicies(): Promise<HRPolicy[]> {
+  const res = await fetch('/api/v1/policy', { headers: { ...authHeader() } });
+  if (res.status === 401) throw new Error('UNAUTHORIZED');
+  if (!res.ok) throw new Error(await readJsonError(res, 'Failed to load policies'));
+  const body = (await res.json()) as { success?: boolean; data?: HRPolicy[] };
+  if (!body.success || !Array.isArray(body.data)) throw new Error('Failed to load policies');
+  return body.data;
+}
+
+export async function createPolicy(input: PolicyInput): Promise<HRPolicy> {
+  const res = await fetch('/api/v1/policy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
+    body: JSON.stringify(input),
+  });
+  if (res.status === 401) throw new Error('UNAUTHORIZED');
+  if (res.status === 403) throw new Error('Manager role required');
+  if (!res.ok) throw new Error(await readJsonError(res, 'Failed to create policy'));
+  const body = (await res.json()) as { success?: boolean; data?: HRPolicy };
+  if (!body.success || !body.data) throw new Error('Failed to create policy');
+  return body.data;
+}
+
+export async function updatePolicy(id: string, input: Partial<PolicyInput>): Promise<HRPolicy> {
+  const res = await fetch(`/api/v1/policy/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
+    body: JSON.stringify(input),
+  });
+  if (res.status === 401) throw new Error('UNAUTHORIZED');
+  if (res.status === 403) throw new Error('Manager role required');
+  if (!res.ok) throw new Error(await readJsonError(res, 'Failed to update policy'));
+  const body = (await res.json()) as { success?: boolean; data?: HRPolicy };
+  if (!body.success || !body.data) throw new Error('Failed to update policy');
+  return body.data;
+}
+
+export async function deletePolicy(id: string): Promise<void> {
+  const res = await fetch(`/api/v1/policy/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { ...authHeader() },
+  });
+  if (res.status === 401) throw new Error('UNAUTHORIZED');
+  if (res.status === 403) throw new Error('Manager role required');
+  if (!res.ok) throw new Error(await readJsonError(res, 'Failed to delete policy'));
 }
