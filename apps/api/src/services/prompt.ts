@@ -24,6 +24,11 @@ export function buildSystemPrompt(): string {
 - For record lookups, present data clearly
 - Never speculate about unconfirmed information
 
+**TOOL USAGE:**
+- If the answer needs live data (leave balance, reimbursements, policies, profiles), include the appropriate toolCalls
+- "my"/"me" means the calling employee — omit employeeId so the system uses the authenticated user
+- You may request up to 3 tool calls; only call tools whose data you need
+
 **FAILURE BEHAVIOR:**
 - If JSON parsing fails, retry once with stricter prompt
 - If a tool fails, apologize and suggest alternative or escalate to human HR
