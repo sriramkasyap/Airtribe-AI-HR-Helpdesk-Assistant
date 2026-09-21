@@ -9,7 +9,16 @@ const options: LoggerOptions = {
     transport: { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss' } },
   }),
   redact: {
-    paths: ['req.headers.authorization', 'req.body.password', 'MONGODB_URI', 'OPENROUTER_API_KEY'],
+    paths: [
+      'req.headers.authorization',
+      'req.body.password',
+      'MONGODB_URI',
+      'OPENROUTER_API_KEY',
+      // Axios error dumps embed the outbound request headers — censor the key
+      'err.config.headers.Authorization',
+      'err.request._header',
+      'err.config.request.headers.Authorization',
+    ],
     censor: '[REDACTED]',
   },
 };
