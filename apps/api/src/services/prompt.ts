@@ -27,6 +27,7 @@ export function buildSystemPrompt(): string {
 **TOOL USAGE:**
 - If the answer needs live data (leave balance, reimbursements, policies, profiles), include the appropriate toolCalls
 - "my"/"me" means the calling employee — omit employeeId so the system uses the authenticated user
+- get_hr_policy accepts either {"policyId": "..."} or {"topic": "remote_work|leave|conduct"} — use topic when the user asks about a policy subject without an ID
 - You may request up to 3 tool calls; only call tools whose data you need
 
 **FAILURE BEHAVIOR:**

@@ -1,4 +1,4 @@
-import { getEmployeeProfile, getLeaveBalance, getHRPolicy, getReimbursementStatus } from '../tools';
+import { getEmployeeProfile, getLeaveBalance, getHRPolicy, getReimbursementStatus, listPolicies } from '../tools';
 import type { ToolContext } from '../tools';
 
 export type ToolName =
@@ -48,14 +48,30 @@ export function executeToolCall(
       );
     }
     case 'get_hr_policy': {
-      const args = normalizeArgs(call.arguments, ['policyId']);
-      return run('get_hr_policy', () => getHRPolicy({ policyId: args.policyId }));
+      const args = normalizeArgs(call.arguments, ['policyId', 'topic']);
+      if (args.policyId) {
+        return run('get_hr_policy', () => getHRPolicy({ policyId: args.policyId }));
+      }
+      // No ID known — search by topic/category instead (e.g. "remote work policy")
+      return run('get_hr_policy', () => lookupPolicyByTopic(args.topic));
     }
     default: {
       const unknown = `Unknown tool: ${call.name}`;
       return Promise.resolve({ name: call.name, ok: false, summary: unknown });
     }
   }
+}
+
+async function lookupPolicyByTopic(topic?: string): Promise<{ success: boolean; data?: unknown; error?: string }> {
+  const result = await listPolicies({ topic });
+  if (!result.success) return result;
+  const policies = result.data as Array<Record<string, unknown>> | undefined;
+  // Exactly one match → return the policy itself; otherwise return the list
+  // and let the composing turn summarize or ask which one is meant.
+  if (Array.isArray(policies) && policies.length === 1) {
+    return { success: true, data: policies[0] };
+  }
+  return result;
 }
 
 /**

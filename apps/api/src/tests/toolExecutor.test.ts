@@ -63,6 +63,32 @@ describe('executeToolCall', () => {
     expect(result.ok).toBe(true);
     expect(result.summary).toEqual([{ amount: 500 }]);
   });
+
+  it('falls back to a topic search when get_hr_policy has no ID', async () => {
+    mockedTools.listPolicies.mockResolvedValue({
+      success: true,
+      data: [{ id: 'pol1', title: 'Remote Work Policy' }],
+    });
+    const result = await executeToolCall(
+      { name: 'get_hr_policy', arguments: { topic: 'remote_work' } },
+      context,
+    );
+    expect(mockedTools.getHRPolicy).not.toHaveBeenCalled();
+    expect(mockedTools.listPolicies).toHaveBeenCalledWith({ topic: 'remote_work' });
+    expect(result.ok).toBe(true);
+    expect(result.summary).toEqual({ id: 'pol1', title: 'Remote Work Policy' });
+  });
+
+  it('falls back to listing all policies when neither ID nor topic is given', async () => {
+    mockedTools.listPolicies.mockResolvedValue({
+      success: true,
+      data: [{ id: 'pol1', title: 'Remote Work Policy' }, { id: 'pol3', title: 'PTO Policy' }],
+    });
+    const result = await executeToolCall({ name: 'get_hr_policy', arguments: {} }, context);
+    expect(mockedTools.listPolicies).toHaveBeenCalledWith({ topic: undefined });
+    expect(result.ok).toBe(true);
+    expect(Array.isArray(result.summary)).toBe(true);
+  });
 });
 
 describe('executeToolCalls', () => {
