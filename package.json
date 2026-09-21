@@ -11,7 +11,6 @@
     "clean": "rm -rf node_modules .turbo dist apps/*/dist packages/*/dist apps/*/node_modules packages/*/node_modules"
   },
   "devDependencies": {
-    "concurrently": "^8.0.0",
     "eslint": "^9.18.0",
     "turbo": "^2.5.0",
     "typescript-eslint": "^8.20.0"
