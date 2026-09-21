@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { buildAnswerPrompt, buildPrompt } from './prompt';
 import { logger } from '../utils/logger';
+import type { ToolContext } from '../tools/types';
 
 export interface LLMOutput {
   classification: {
@@ -22,10 +23,14 @@ export class LLMOutputError extends Error {
   }
 }
 
-export function parseStructuredOutput(text: string): LLMOutput {
+export function extractJSON(text: string): string {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new LLMOutputError('No JSON found in response');
-  const parsed = JSON.parse(jsonMatch[0]) as Record<string, any>;
+  return jsonMatch[0];
+}
+
+export function parseStructuredOutput(text: string): LLMOutput {
+  const parsed = JSON.parse(extractJSON(text)) as Record<string, any>;
   return {
     classification: {
       type: parsed.classification?.type ?? 'off_topic',
@@ -38,12 +43,6 @@ export function parseStructuredOutput(text: string): LLMOutput {
     clarificationQuestion: parsed.clarificationQuestion ?? null,
     followUpSuggestions: Array.isArray(parsed.followUpSuggestions) ? parsed.followUpSuggestions : [],
   };
-}
-
-export function extractJSON(text: string): string {
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new LLMOutputError('No JSON found in response');
-  return jsonMatch[0];
 }
 
 /**
@@ -106,14 +105,7 @@ const MODEL = process.env.OPENROUTER_MODEL || 'z-ai/glm-5.3-flash';
 const TEMPERATURE = 0.3;
 const MAX_TOKENS = 4096;
 const TIMEOUT_MS = 120000;
-const INPUT_RATE = 0.002 / 1_000_000;
-const OUTPUT_RATE = 0.004 / 1_000_000;
 const MAX_ATTEMPTS = 3;
-
-interface ToolContext {
-  employeeId: string;
-  role: 'employee' | 'manager';
-}
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -173,10 +165,6 @@ export class LLMService {
       for (const token of parser.push(String(chunk))) yield token;
     }
     for (const token of parser.flush()) yield token;
-  }
-
-  calculateCost(inputTokens: number, outputTokens: number): number {
-    return inputTokens * INPUT_RATE + outputTokens * OUTPUT_RATE;
   }
 
   /**
