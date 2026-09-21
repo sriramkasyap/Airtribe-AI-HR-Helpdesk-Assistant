@@ -117,7 +117,7 @@ router.post('/', async (req, res) => {
     let finalOutput = plan;
     if (executed.length > 0) {
       try {
-        finalOutput = await llmService.composeWithToolResults(message, plan, executed, history);
+        finalOutput = await llmService.composeWithToolResults(message, plan, executed, history, context);
       } catch (error) {
         // Fall back to the plan's own response if composition fails
         logError(error as Error, { section: 'chat', event: 'tool composition failed' });

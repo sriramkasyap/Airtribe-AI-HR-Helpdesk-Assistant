@@ -13,12 +13,45 @@ beforeEach(() => {
 });
 
 describe('executeToolCall', () => {
-  it('defaults employeeId to the authenticated user', async () => {
+  it('defaults employeeId to the authenticated user when args are empty', async () => {
     mockedTools.getLeaveBalance.mockResolvedValue({ success: true, data: { casualLeave: 21 } });
     const result = await executeToolCall({ name: 'get_leave_balance', arguments: {} }, context);
-    expect(mockedTools.getLeaveBalance).toHaveBeenCalledWith({ employeeId: 'emp1' }, context);
+    expect(mockedTools.getLeaveBalance).toHaveBeenCalledWith(
+      { employeeId: undefined, name: undefined },
+      context,
+    );
     expect(result.ok).toBe(true);
     expect(result.summary).toEqual({ casualLeave: 21 });
+  });
+
+  it('passes a manager-requested employeeId through to leave balance', async () => {
+    const manager = { employeeId: 'emp2', role: 'manager' as const };
+    mockedTools.getLeaveBalance.mockResolvedValue({
+      success: true,
+      data: { employeeId: 'emp1', casualLeave: 21 },
+    });
+    const result = await executeToolCall(
+      { name: 'get_leave_balance', arguments: { employeeId: 'emp1' } },
+      manager,
+    );
+    expect(mockedTools.getLeaveBalance).toHaveBeenCalledWith(
+      { employeeId: 'emp1', name: undefined },
+      manager,
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('passes a name lookup through for managers', async () => {
+    const manager = { employeeId: 'emp2', role: 'manager' as const };
+    mockedTools.getLeaveBalance.mockResolvedValue({ success: true, data: { casualLeave: 20 } });
+    await executeToolCall(
+      { name: 'get_leave_balance', arguments: { name: 'Carol White' } },
+      manager,
+    );
+    expect(mockedTools.getLeaveBalance).toHaveBeenCalledWith(
+      { employeeId: undefined, name: 'Carol White' },
+      manager,
+    );
   });
 
   it('propagates tool failure as ok:false with the error text', async () => {

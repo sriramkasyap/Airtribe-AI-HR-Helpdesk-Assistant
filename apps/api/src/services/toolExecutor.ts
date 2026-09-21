@@ -36,9 +36,15 @@ export function executeToolCall(
       );
     }
     case 'get_leave_balance': {
-      const args = normalizeArgs(call.arguments, ['employeeId']);
+      const args = normalizeArgs(call.arguments, ['employeeId', 'name']);
       return run('get_leave_balance', () =>
-        getLeaveBalance({ employeeId: args.employeeId ?? context.employeeId }, context),
+        getLeaveBalance(
+          {
+            employeeId: args.employeeId,
+            name: args.name,
+          },
+          context,
+        ),
       );
     }
     case 'get_reimbursement_status': {

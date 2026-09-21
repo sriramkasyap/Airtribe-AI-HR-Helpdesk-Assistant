@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { SignJWT } from 'jose';
 import { logger, logError } from '../utils/logger';
+import { EmployeeModel } from '../db/models/Employee';
 
 const loginSchema = z.object({ employeeId: z.string().min(1) });
 const JWT_SECRET = process.env.JWT_SECRET || 'development-secret-change-me';
@@ -12,8 +13,17 @@ const router: Router = Router();
 router.post('/login', async (req, res) => {
   try {
     const { employeeId } = loginSchema.parse(req.body);
+    const employee = await EmployeeModel.findOne({ id: employeeId }).select('id role').lean();
+    if (!employee) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'INVALID_CREDENTIALS', message: 'Unknown employee ID' },
+      });
+      return;
+    }
+
     const secret = new TextEncoder().encode(JWT_SECRET);
-    const token = await new SignJWT({ employeeId, role: 'employee' })
+    const token = await new SignJWT({ employeeId: employee.id, role: employee.role })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
       .setExpirationTime(`${TOKEN_TTL_SECONDS}s`)

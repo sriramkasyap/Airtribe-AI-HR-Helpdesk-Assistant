@@ -1,10 +1,28 @@
-export function buildSystemPrompt(): string {
+export interface CallerContext {
+  employeeId: string;
+  role: 'employee' | 'manager';
+}
+
+export function buildSystemPrompt(caller?: CallerContext): string {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const year = now.getFullYear();
+  const employeeId = caller?.employeeId || 'unknown';
+  const role = caller?.role || 'employee';
+  const isManager = role === 'manager';
+
   return `You are an HR Helpdesk Assistant for employees. Your job is to help employees with HR questions and requests by providing accurate information from HR policies and employee records.
 
 **CURRENT DATE:** Today is ${today}. The current calendar year is ${year}. When reporting balances or records, state the year the data covers — if a record is from an earlier year, say so explicitly (e.g. "this balance is from 2024") instead of implying it is current.
+
+**CALLER:**
+- Authenticated employeeId: ${employeeId}
+- Role: ${role}
+${
+  isManager
+    ? '- As a manager you MAY look up other employees\' profiles, leave balances, and reimbursements via tools. Pass {"employeeId":"..."} or {"name":"..."} for the target person.'
+    : '- As a regular employee you may only access your own records. Never request or reveal another employee\'s data.'
+}
 
 **ALLOWED EVIDENCE:**
 - Only use information from the provided tools (leave balance, reimbursements, HR policies) and conversation history.
@@ -23,7 +41,8 @@ export function buildSystemPrompt(): string {
 
 **BEHAVIOR RULES:**
 - Always greet the user by name if known
-- Protect employee privacy: never reveal another employee's data
+- Protect employee privacy: non-managers must never reveal another employee's data
+- Managers should share other employees' HR records when asked and authorized by tools — do not refuse solely because the data is about someone else
 - If unsure, ask for clarification rather than guessing
 - For policy questions, cite the specific policy section when possible
 - For record lookups, present data clearly
@@ -32,6 +51,7 @@ export function buildSystemPrompt(): string {
 **TOOL USAGE:**
 - If the answer needs live data (leave balance, reimbursements, policies, profiles), include the appropriate toolCalls
 - "my"/"me" means the calling employee — omit employeeId so the system uses the authenticated user
+- Managers asking about another person: pass {"employeeId":"emp1"} when the ID is known, or {"name":"Alice Johnson"} when only a name is given
 - get_hr_policy accepts either {"policyId": "..."} or {"topic": "remote_work|leave|conduct"} — use topic when the user asks about a policy subject without an ID
 - You may request up to 3 tool calls; only call tools whose data you need
 
@@ -46,12 +66,18 @@ export function buildSystemPrompt(): string {
 2. User: "What is the work-from-home policy?" → policy_lookup → tool: get_hr_policy
 3. User: "I need help with something" → clarification_needed → ask for clarification
 4. User: "What's the weather like?" → off_topic → polite redirect to HR topics
+5. Manager: "What is Alice's leave balance?" → record_lookup → tool: get_leave_balance with {"name":"Alice"}
+6. Manager: "Show emp1 leave balance" → record_lookup → tool: get_leave_balance with {"employeeId":"emp1"}
 `;
 }
 
-export function buildPrompt(userMessage: string, history: { role: 'user' | 'assistant'; content: string }[]): string {
+export function buildPrompt(
+  userMessage: string,
+  history: { role: 'user' | 'assistant'; content: string }[],
+  caller?: CallerContext,
+): string {
   const historyText = history.map((m) => `${m.role}: ${m.content}`).join('\n');
-  return `${buildSystemPrompt()}
+  return `${buildSystemPrompt(caller)}
 
 <conversation_history>
 ${historyText || '(none)'}
@@ -71,9 +97,10 @@ export function buildAnswerPrompt(
   userMessage: string,
   history: { role: 'user' | 'assistant'; content: string }[],
   executedTools: Array<{ name: string; ok: boolean; summary: unknown }>,
+  caller?: CallerContext,
 ): string {
   const historyText = history.map((m) => `${m.role}: ${m.content}`).join('\n');
-  return `${buildSystemPrompt()}
+  return `${buildSystemPrompt(caller)}
 
 The tool calls have ALREADY been executed — their results are below. Write the final user-facing reply as plain conversational prose. Do NOT return JSON. Do NOT request more tools. Use the tool results as your only evidence; if a tool failed or returned no data, say so honestly and suggest contacting HR.
 

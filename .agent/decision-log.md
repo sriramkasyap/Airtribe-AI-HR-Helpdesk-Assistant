@@ -1,5 +1,35 @@
 # Decision log
 
+## 2026-09-21 18:12 — Fix manager leave-balance access
+
+| Confidence | Decision | Where | Reasoning | Spec link |
+|---|---|---|---|---|
+| Medium | Managers may resolve leave targets by partial name (`name` arg) as well as `employeeId` | `getLeaveBalance.ts`, `toolExecutor.ts`, `prompt.ts` | Users ask by name more often than ID; name lookup is manager-only to preserve privacy | partially linked |
+| High | Inject caller role/employeeId into the system prompt and allow managers to share other employees' tool data | `prompt.ts`, `llm.service.ts` | Blanket "never reveal another employee's data" made the model refuse even when tools would authorize | linked |
+| High | Login JWT now loads the employee from Mongo and signs the real `role` (rejects unknown IDs) | `routes/auth.ts` | Login previously hard-coded `role: 'employee'`, so managers failed the tool auth check as if they were regular employees | linked |
+
+## 2026-09-21 18:10 — Merge leave balances into the Employee document
+
+| Confidence | Decision | Where | Reasoning | Spec link |
+|---|---|---|---|---|
+| Medium | Keep `year` on the embedded `leaveBalance` subdoc rather than dropping it | `Employee.ts`, `shared-types` | Seed and tool already treated leave as current-year only, but year is useful metadata if quotas reset annually without restoring a second collection | partially linked |
+| High | Embed leave quotas on `Employee` and delete the `LeaveBalance` collection/model | `Employee.ts`, `getLeaveBalance.ts`, `seed.ts` | Lookups were already effectively 1:1 (`findOne` by employeeId with no year filter); a separate table added join cost with no multi-row use | linked |
+
+## 2026-09-21 18:07 — Proper chat UI with role bubbles and markdown
+
+| Confidence | Decision | Where | Reasoning | Spec link |
+|---|---|---|---|---|
+| Medium | Teal/slate visual system (Fraunces + Manrope) instead of a design-system package | `apps/web/src/styles/app.css`, `index.html` | App had no existing design system; a small CSS-variable sheet keeps the chat readable without adding a UI kit | unlinked |
+| High | `react-markdown` + `remark-gfm` for bubble content (no raw HTML) | `MarkdownContent.tsx`, `Chat.tsx` | Assistant replies include lists/tables/emphasis; GFM covers common HR-policy formatting while default sanitization avoids XSS | unlinked |
+| High | User bubbles right/teal, assistant bubbles left/white with labels | `Chat.tsx`, `app.css` | Fixes the reported inability to tell speakers apart via alignment, color, and role labels | unlinked |
+
+## 2026-09-21 17:52 — Fix logout redirect loop between login and root
+
+| Confidence | Decision | Where | Reasoning | Spec link |
+|---|---|---|---|---|
+| Medium | Exported `AppRoutes` separately so auth redirect behavior can be tested with `MemoryRouter` without mounting `BrowserRouter` | `apps/web/src/App.tsx`, `apps/web/src/App.test.tsx` | The loop only shows up across navigation; unit-testing the route tree needs a controllable history | unlinked |
+| High | Replaced inline `getToken() ? <Navigate/> : <Login/>` on `/login` with a `GuestOnly` route component that checks the token on every render | `apps/web/src/App.tsx` | `App` wraps `BrowserRouter`, so location changes do not re-run `App()`; the login element stayed as a stale authenticated redirect and fought `RequireAuth` after `clearToken()` | unlinked |
+
 ## 2026-09-21 15:40 — Build the tool-executor feature set and get the app running
 
 | Confidence | Decision | Where | Reasoning | Spec link |

@@ -125,10 +125,10 @@ export class LLMService {
 
   async classifyAndPlan(
     userMessage: string,
-    _context: ToolContext,
+    context: ToolContext,
     history: ChatMessage[] = [],
   ): Promise<LLMOutput> {
-    const prompt = buildPrompt(userMessage, history);
+    const prompt = buildPrompt(userMessage, history, context);
     const raw = await this.callLLM(prompt);
     return parseStructuredOutput(raw);
   }
@@ -140,14 +140,14 @@ export class LLMService {
    */
   async *streamAnswer(
     userMessage: string,
-    _context: ToolContext,
+    context: ToolContext,
     history: ChatMessage[],
     executedTools: Array<{ name: string; ok: boolean; summary: unknown }>,
   ): AsyncGenerator<string> {
     if (!OPENROUTER_API_KEY) {
       throw new LLMOutputError('OpenRouter API key is not configured (set OPENROUTER_API_KEY)');
     }
-    const prompt = buildAnswerPrompt(userMessage, history, executedTools);
+    const prompt = buildAnswerPrompt(userMessage, history, executedTools, context);
     const response = await axios.post(
       `${this.baseUrl}/chat/completions`,
       {
@@ -188,9 +188,10 @@ export class LLMService {
     plan: LLMOutput,
     executedTools: Array<{ name: string; ok: boolean; summary: unknown }>,
     history: ChatMessage[] = [],
+    context?: ToolContext,
   ): Promise<LLMOutput> {
     const prompt = [
-      buildPrompt(userMessage, history),
+      buildPrompt(userMessage, history, context),
       '<tool_results>',
       JSON.stringify(executedTools, null, 2),
       '</tool_results>',
