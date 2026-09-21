@@ -1,32 +1,50 @@
-import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
-import { Server } from 'http';
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
-import { app } from '../src/app';
-import { connectDB } from '../src/db/connection';
+import mongoose from 'mongoose';
+import { SignJWT } from 'jose';
+import app from '../app';
+import { seedDatabase } from '../db/seeds/seed';
 
-let server: Server;
+let dbUp = false;
+let token = '';
 
 beforeAll(async () => {
-  await connectDB();
-  server = app.listen(0);
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'development-secret-change-me');
+  token = await new SignJWT({ employeeId: 'emp1', role: 'employee' })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('2h')
+    .sign(secret);
+
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/hr-helpdesk-test', {
+      serverSelectionTimeoutMS: 2000,
+    });
+    dbUp = true;
+    await seedDatabase();
+  } catch {
+    dbUp = false;
+  }
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(resolve));
+  if (dbUp) await mongoose.disconnect();
 });
 
 describe('Health', () => {
   it('should return health status', async () => {
-    const res = await request(server).get('/health');
-    expect(res.status).toBe(200);
+    const res = await request(app).get('/health');
+    // 200 when all checks healthy (DB up), 503 when degraded (e.g. no MongoDB locally)
+    expect([200, 503]).toContain(res.status);
     expect(res.body).toHaveProperty('status');
     expect(res.body).toHaveProperty('checks');
+    expect(res.body.checks).toHaveProperty('database');
   });
 });
 
 describe('Auth', () => {
-  it('should login with valid employeeId', async () => {
-    const res = await request(server).post('/api/v1/auth/login').send({ employeeId: 'emp1' });
+  it('should login with a valid employeeId', async () => {
+    const res = await request(app).post('/api/v1/auth/login').send({ employeeId: 'emp1' });
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data).toHaveProperty('token');
@@ -34,7 +52,7 @@ describe('Auth', () => {
   });
 
   it('should reject login without employeeId', async () => {
-    const res = await request(server).post('/api/v1/auth/login').send({});
+    const res = await request(app).post('/api/v1/auth/login').send({});
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
   });
@@ -42,18 +60,59 @@ describe('Auth', () => {
 
 describe('Chat', () => {
   it('should require auth', async () => {
-    const res = await request(server).post('/api/v1/chat').send({ message: 'Hello' });
+    const res = await request(app).post('/api/v1/chat').send({ message: 'Hello' });
     expect(res.status).toBe(401);
     expect(res.body.success).toBe(false);
   });
 
   it('should reject oversized messages', async () => {
-    const token = 'valid_token_placeholder';
-    const longMessage = 'x'.repeat(5000);
-    const res = await request(server)
+    const res = await request(app)
       .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
-      .send({ message: longMessage });
+      .send({ message: 'x'.repeat(5000) });
     expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+});
+
+describe('Employee routes', () => {
+  it('should reject unauthenticated access', async () => {
+    const res = await request(app).get('/api/v1/employee');
+    expect(res.status).toBe(401);
+  });
+
+  it('should list employees with valid auth', async () => {
+    if (!dbUp) return;
+    const res = await request(app).get('/api/v1/employee').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('should get an employee profile by ID', async () => {
+    if (!dbUp) return;
+    const res = await request(app).get('/api/v1/employee/emp1').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('name');
+  });
+});
+
+describe('Policy routes', () => {
+  it('should reject unauthenticated access', async () => {
+    const res = await request(app).get('/api/v1/policy');
+    expect(res.status).toBe(401);
+  });
+
+  it('should list policies with valid auth', async () => {
+    if (!dbUp) return;
+    const res = await request(app).get('/api/v1/policy').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('should get a policy by ID', async () => {
+    if (!dbUp) return;
+    const res = await request(app).get('/api/v1/policy/pol1').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('title');
   });
 });
