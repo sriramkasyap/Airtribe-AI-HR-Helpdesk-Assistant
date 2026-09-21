@@ -38,6 +38,15 @@ export interface HRPolicy {
   isActive: boolean;
 }
 
+export interface ConversationMemory {
+  id: string;
+  sessionId: string;
+  userId: string;
+  messages: ChatMessage[];
+  updatedAt: string;
+  expiresAt: string;
+}
+
 export type MessageRole = 'user' | 'assistant';
 
 export interface ChatMessage {
