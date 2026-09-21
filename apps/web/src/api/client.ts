@@ -24,24 +24,6 @@ export interface LoginResult {
   expiresAt: number;
 }
 
-export interface LLMOutput {
-  classification: {
-    type: string;
-    confidence: number;
-    reasoning: string;
-  };
-  toolCalls: Array<{ name: string; arguments: Record<string, unknown> }>;
-  response: string;
-  needsClarification: boolean;
-  clarificationQuestion: string | null;
-  followUpSuggestions: string[];
-}
-
-export interface LLMChatResponse extends LLMOutput {
-  sessionId: string;
-  toolsUsed: Array<{ name: string; ok: boolean; data: unknown }>;
-}
-
 export interface StreamHandlers {
   onStatus?: (stage: string) => void;
   onTool?: (name: string, ok: boolean) => void;
@@ -83,22 +65,6 @@ export async function streamChat(
     else if (event.type === 'suggestions') handlers.onSuggestions?.(event.items);
     else if (event.type === 'error') throw new Error(event.message);
   });
-}
-
-export async function sendChat(
-  body: { message: string; sessionId?: string; stream?: false },
-): Promise<LLMChatResponse> {
-  const res = await fetch('/api/v1/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeader() },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 401) throw new Error('UNAUTHORIZED');
-  const data = (await res.json()) as { success?: boolean; data?: LLMChatResponse; error?: { message?: string } };
-  if (!res.ok || !data.success || !data.data) {
-    throw new Error(data.error?.message || 'Chat request failed');
-  }
-  return data.data;
 }
 
 export async function login(employeeId: string): Promise<LoginResult> {
