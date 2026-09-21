@@ -1,6 +1,7 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clearToken, streamChat } from '../api/client';
+import MarkdownContent from '../components/MarkdownContent';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -15,6 +16,12 @@ const SUGGESTED_QUESTIONS = [
   'Show my reimbursement status',
 ];
 
+const STAGE_LABELS: Record<string, string> = {
+  understanding: 'Understanding your question…',
+  tools: 'Checking HR records…',
+  composing: 'Writing your answer…',
+};
+
 export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -22,16 +29,15 @@ export default function Chat() {
   const [error, setError] = useState<string | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
-  const STAGE_LABELS: Record<string, string> = {
-    understanding: 'Understanding your question…',
-    tools: 'Checking HR records…',
-    composing: 'Writing your answer…',
-  };
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' });
+  }, [messages, statusText, busy]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(overrideText?: string) {
+    const text = (overrideText ?? input).trim();
     if (!text || busy) return;
     setInput('');
     setBusy(true);
@@ -91,11 +97,16 @@ export default function Chat() {
     }
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void send();
     }
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    void send();
   }
 
   function logout() {
@@ -103,93 +114,102 @@ export default function Chat() {
     navigate('/login', { replace: true });
   }
 
-  const lastAssistant = messages.length > 0 && messages[messages.length - 1].role === 'assistant'
-    ? messages[messages.length - 1]
-    : null;
+  const lastAssistant =
+    messages.length > 0 && messages[messages.length - 1].role === 'assistant'
+      ? messages[messages.length - 1]
+      : null;
 
   return (
-    <div style={{ maxWidth: 720, margin: '24px auto', fontFamily: 'sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>HR Helpdesk Assistant</h1>
-        <button onClick={logout}>Log out</button>
+    <div className="chat-page">
+      <header className="chat-header">
+        <div className="chat-brand">
+          <h1>HR Helpdesk Assistant</h1>
+          <p>Ask about leave, policies, and reimbursements</p>
+        </div>
+        <button type="button" className="ghost-btn" onClick={logout}>
+          Log out
+        </button>
       </header>
 
-      <div
-        data-testid="message-list"
-        style={{ border: '1px solid #ccc', padding: 16, minHeight: 400, display: 'flex', flexDirection: 'column', gap: 12 }}
-      >
-        {messages.length === 0 && (
-          <div style={{ color: '#888' }}>
-            <p>Ask an HR question to get started, or try one of these:</p>
-            <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
-              {SUGGESTED_QUESTIONS.map((q) => (
-                <li key={q}>
-                  <button
-                    onClick={() => {
-                      setInput(q);
-                      void send();
-                    }}
-                    style={{ background: 'none', border: 'none', color: '#06c', cursor: 'pointer', padding: 0 }}
-                  >
+      <div className="chat-panel">
+        <div data-testid="message-list" className="message-list" role="log" aria-live="polite">
+          {messages.length === 0 && (
+            <div className="empty-state">
+              <h2>How can I help?</h2>
+              <p>Ask an HR question, or start with one of these:</p>
+              <div className="suggestion-grid">
+                {SUGGESTED_QUESTIONS.map((q) => (
+                  <button key={q} type="button" className="suggestion-chip" onClick={() => void send(q)} disabled={busy}>
                     {q}
                   </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {messages.map((m, i) => {
-          const isPendingAssistant = m.role === 'assistant' && i === messages.length - 1 && busy;
-          return (
-            <div key={i}>
-              <p style={{ margin: 0, fontWeight: m.role === 'user' ? 600 : 400 }}>
-                {m.role === 'user' ? 'You: ' : 'Assistant: '}
-                {m.content || (isPendingAssistant ? statusText || '…' : '…')}
-              </p>
-              {m.toolsUsed && m.toolsUsed.length > 0 && (
-                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>
-                  Tools used: {m.toolsUsed.map((t) => `${t.name}${t.ok ? '' : ' (failed)'}`).join(', ')}
-                </p>
-              )}
+                ))}
+              </div>
             </div>
-          );
-        })}
-      </div>
+          )}
 
-      {lastAssistant?.followUps && lastAssistant.followUps.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          {lastAssistant.followUps.map((f) => (
-            <button
-              key={f}
-              onClick={() => {
-                setInput(f);
-                void send();
-              }}
-              style={{ margin: '0 8px 8px 0', padding: '4px 10px', cursor: 'pointer' }}
-            >
-              {f}
-            </button>
-          ))}
+          {messages.map((m, i) => {
+            const isPendingAssistant = m.role === 'assistant' && i === messages.length - 1 && busy;
+            const showStatus = isPendingAssistant && !m.content;
+            return (
+              <div key={i} className={`message-row ${m.role}`}>
+                <article className={`bubble ${m.role}`} aria-label={m.role === 'user' ? 'Your message' : 'Assistant message'}>
+                  <span className="bubble-label">{m.role === 'user' ? 'You' : 'Assistant'}</span>
+                  {showStatus ? (
+                    <p className="status-line">{statusText || '…'}</p>
+                  ) : m.content ? (
+                    <MarkdownContent content={m.content} />
+                  ) : (
+                    <p className="status-line">…</p>
+                  )}
+                  {m.toolsUsed && m.toolsUsed.length > 0 && (
+                    <p className="tools-used">
+                      Tools used: {m.toolsUsed.map((t) => `${t.name}${t.ok ? '' : ' (failed)'}`).join(', ')}
+                    </p>
+                  )}
+                  {isPendingAssistant && m.content && statusText && (
+                    <p className="status-line" style={{ marginTop: 8 }}>
+                      {statusText}
+                    </p>
+                  )}
+                </article>
+              </div>
+            );
+          })}
+          <div ref={bottomRef} />
         </div>
-      )}
 
-      {error && (
-        <p role="alert" style={{ color: 'crimson' }}>
-          {error}
-        </p>
-      )}
+        <form className="composer" onSubmit={handleSubmit}>
+          {lastAssistant?.followUps && lastAssistant.followUps.length > 0 && !busy && (
+            <div className="follow-ups">
+              {lastAssistant.followUps.map((f) => (
+                <button key={f} type="button" className="follow-up-chip" onClick={() => void send(f)}>
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask an HR question…"
-          style={{ flex: 1, padding: 8 }}
-        />
-        <button onClick={() => void send()} disabled={busy}>
-          {busy ? 'Sending…' : 'Send'}
-        </button>
+          {error && (
+            <p role="alert" className="error-banner">
+              {error}
+            </p>
+          )}
+
+          <div className="composer-row">
+            <textarea
+              className="composer-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask an HR question…"
+              rows={1}
+              aria-label="Message"
+            />
+            <button type="submit" className="send-btn" disabled={busy || !input.trim()}>
+              {busy ? 'Sending…' : 'Send'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

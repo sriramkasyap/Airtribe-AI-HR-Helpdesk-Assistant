@@ -24,30 +24,29 @@ export default function Login() {
   }
 
   return (
-    <div style={{ maxWidth: 360, margin: '80px auto', fontFamily: 'sans-serif' }}>
-      <h1>HR Helpdesk Assistant</h1>
-      <p>Sign in with your employee ID.</p>
-      <form onSubmit={handleSubmit}>
-        <label htmlFor="employeeId" style={{ display: 'block', marginBottom: 8 }}>
-          Employee ID
-        </label>
-        <input
-          id="employeeId"
-          value={employeeId}
-          onChange={(e) => setEmployeeId(e.target.value)}
-          placeholder="e.g. emp1"
-          autoComplete="username"
-          style={{ width: '100%', padding: 8, marginBottom: 12 }}
-        />
-        <button type="submit" disabled={busy} style={{ width: '100%', padding: 10 }}>
-          {busy ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
-      {error && (
-        <p role="alert" style={{ color: 'crimson', marginTop: 12 }}>
-          {error}
-        </p>
-      )}
+    <div className="login-page">
+      <div className="login-card">
+        <h1>HR Helpdesk Assistant</h1>
+        <p className="lede">Sign in with your employee ID.</p>
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="employeeId">Employee ID</label>
+          <input
+            id="employeeId"
+            value={employeeId}
+            onChange={(e) => setEmployeeId(e.target.value)}
+            placeholder="e.g. emp1"
+            autoComplete="username"
+          />
+          <button type="submit" className="send-btn" disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign in'}
+          </button>
+        </form>
+        {error && (
+          <p role="alert" className="error-banner" style={{ marginTop: 12 }}>
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
