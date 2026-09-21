@@ -39,6 +39,30 @@ describe('parseSSEBlock', () => {
   it('ignores unknown event types', () => {
     expect(parseSSEBlock('data: {"type":"weird"}')).toEqual([]);
   });
+
+  it('parses status events', () => {
+    expect(parseSSEBlock('data: {"type":"status","stage":"tools"}')).toEqual([
+      { type: 'status', stage: 'tools' },
+    ]);
+  });
+
+  it('parses tool events', () => {
+    expect(parseSSEBlock('data: {"type":"tool","name":"get_leave_balance","ok":true}')).toEqual([
+      { type: 'tool', name: 'get_leave_balance', ok: true },
+    ]);
+  });
+
+  it('parses suggestions events and filters non-strings', () => {
+    expect(parseSSEBlock('data: {"type":"suggestions","items":["a",42,"b"]}')).toEqual([
+      { type: 'suggestions', items: ['a', 'b'] },
+    ]);
+  });
+
+  it('parses error events', () => {
+    expect(parseSSEBlock('data: {"type":"error","message":"boom"}')).toEqual([
+      { type: 'error', message: 'boom' },
+    ]);
+  });
 });
 
 describe('streamChatResponse', () => {

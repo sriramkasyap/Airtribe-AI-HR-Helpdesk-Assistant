@@ -1,7 +1,10 @@
-export interface SSEEvent {
-  type: 'token' | 'done';
-  content?: string;
-}
+export type SSEEvent =
+  | { type: 'token'; content: string }
+  | { type: 'done' }
+  | { type: 'status'; stage: string }
+  | { type: 'tool'; name: string; ok: boolean }
+  | { type: 'suggestions'; items: string[] }
+  | { type: 'error'; message: string };
 
 /**
  * Parse a single SSE block (lines separated from other blocks by a blank line)
@@ -15,11 +18,22 @@ export function parseSSEBlock(block: string): SSEEvent[] {
     const data = trimmed.slice(5).trim();
     if (!data) continue;
     try {
-      const parsed = JSON.parse(data) as { type?: string; content?: unknown };
+      const parsed = JSON.parse(data) as Record<string, unknown>;
       if (parsed.type === 'token' && typeof parsed.content === 'string') {
         events.push({ type: 'token', content: parsed.content });
       } else if (parsed.type === 'done') {
         events.push({ type: 'done' });
+      } else if (parsed.type === 'status' && typeof parsed.stage === 'string') {
+        events.push({ type: 'status', stage: parsed.stage });
+      } else if (parsed.type === 'tool' && typeof parsed.name === 'string') {
+        events.push({ type: 'tool', name: parsed.name, ok: Boolean(parsed.ok) });
+      } else if (parsed.type === 'suggestions' && Array.isArray(parsed.items)) {
+        events.push({
+          type: 'suggestions',
+          items: parsed.items.filter((item): item is string => typeof item === 'string'),
+        });
+      } else if (parsed.type === 'error' && typeof parsed.message === 'string') {
+        events.push({ type: 'error', message: parsed.message });
       }
     } catch {
       /* skip malformed data lines */

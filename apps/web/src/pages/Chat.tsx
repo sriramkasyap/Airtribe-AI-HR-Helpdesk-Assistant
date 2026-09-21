@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearToken, sendChat } from '../api/client';
+import { clearToken, streamChat } from '../api/client';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -20,29 +20,15 @@ export default function Chat() {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusText, setStatusText] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
 
-  async function sendStructured(text: string) {
-    const data = await sendChat({
-      message: text,
-      ...(sessionIdRef.current ? { sessionId: sessionIdRef.current } : {}),
-    });
-    sessionIdRef.current = data.sessionId;
-    setMessages((prev) => {
-      const copy = [...prev];
-      const last = copy[copy.length - 1];
-      if (last && last.role === 'assistant') {
-        copy[copy.length - 1] = {
-          role: 'assistant',
-          content: data.response,
-          toolsUsed: data.toolsUsed?.map((t) => ({ name: t.name, ok: t.ok })),
-          followUps: data.followUpSuggestions,
-        };
-      }
-      return copy;
-    });
-  }
+  const STAGE_LABELS: Record<string, string> = {
+    understanding: 'Understanding your question…',
+    tools: 'Checking HR records…',
+    composing: 'Writing your answer…',
+  };
 
   async function send() {
     const text = input.trim();
@@ -50,9 +36,48 @@ export default function Chat() {
     setInput('');
     setBusy(true);
     setError(null);
+    setStatusText(STAGE_LABELS.understanding);
     setMessages((prev) => [...prev, { role: 'user', content: text }, { role: 'assistant', content: '' }]);
     try {
-      await sendStructured(text);
+      await streamChat(
+        { message: text, ...(sessionIdRef.current ? { sessionId: sessionIdRef.current } : {}) },
+        {
+          onSessionId: (sid) => {
+            sessionIdRef.current = sid;
+          },
+          onStatus: (stage) => setStatusText(STAGE_LABELS[stage] ?? stage),
+          onToken: (content) =>
+            setMessages((prev) => {
+              const copy = [...prev];
+              const last = copy[copy.length - 1];
+              if (last && last.role === 'assistant') {
+                copy[copy.length - 1] = { ...last, content: last.content + content };
+              }
+              return copy;
+            }),
+          onTool: (name, ok) =>
+            setMessages((prev) => {
+              const copy = [...prev];
+              const last = copy[copy.length - 1];
+              if (last && last.role === 'assistant') {
+                copy[copy.length - 1] = {
+                  ...last,
+                  toolsUsed: [...(last.toolsUsed ?? []), { name, ok }],
+                };
+              }
+              return copy;
+            }),
+          onSuggestions: (items) =>
+            setMessages((prev) => {
+              const copy = [...prev];
+              const last = copy[copy.length - 1];
+              if (last && last.role === 'assistant') {
+                copy[copy.length - 1] = { ...last, followUps: items };
+              }
+              return copy;
+            }),
+        },
+      );
     } catch (err) {
       if (err instanceof Error && err.message === 'UNAUTHORIZED') {
         clearToken();
@@ -62,6 +87,7 @@ export default function Chat() {
       setError(err instanceof Error ? err.message : 'Chat failed');
     } finally {
       setBusy(false);
+      setStatusText(null);
     }
   }
 
@@ -112,19 +138,22 @@ export default function Chat() {
             </ul>
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i}>
-            <p style={{ margin: 0, fontWeight: m.role === 'user' ? 600 : 400 }}>
-              {m.role === 'user' ? 'You: ' : 'Assistant: '}
-              {m.content || '…'}
-            </p>
-            {m.toolsUsed && m.toolsUsed.length > 0 && (
-              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>
-                Tools used: {m.toolsUsed.map((t) => `${t.name}${t.ok ? '' : ' (failed)'}`).join(', ')}
+        {messages.map((m, i) => {
+          const isPendingAssistant = m.role === 'assistant' && i === messages.length - 1 && busy;
+          return (
+            <div key={i}>
+              <p style={{ margin: 0, fontWeight: m.role === 'user' ? 600 : 400 }}>
+                {m.role === 'user' ? 'You: ' : 'Assistant: '}
+                {m.content || (isPendingAssistant ? statusText || '…' : '…')}
               </p>
-            )}
-          </div>
-        ))}
+              {m.toolsUsed && m.toolsUsed.length > 0 && (
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>
+                  Tools used: {m.toolsUsed.map((t) => `${t.name}${t.ok ? '' : ' (failed)'}`).join(', ')}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {lastAssistant?.followUps && lastAssistant.followUps.length > 0 && (
