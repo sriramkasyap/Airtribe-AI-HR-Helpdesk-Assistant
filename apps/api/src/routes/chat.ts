@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { logError } from '../utils/logger';
-import { LLMService } from '../services/llm.service';
+import { buildChatTurnLog, logChatTurn, logError } from '../utils/logger';
+import { LLMService, MODEL, type LLMOutput } from '../services/llm.service';
 import { MemoryService } from '../services/memory.service';
 import { executeToolCalls } from '../services/toolExecutor';
 import type { ExecutedTool } from '../services/toolExecutor';
+import { addUsage, emptyUsage, type TokenUsage } from '../services/cost';
 
 const chatSchema = z.object({
   message: z.string().min(1).max(4000),
@@ -38,7 +39,39 @@ function friendlyError(error: unknown): string {
   return 'Unable to process request';
 }
 
+function writeChatLog(args: {
+  reqId?: string;
+  sessionId: string;
+  employeeId: string;
+  role: string;
+  stream: boolean;
+  query: string;
+  plan?: LLMOutput;
+  executed: ExecutedTool[];
+  usage: TokenUsage;
+  startedAt: number;
+  outcome: 'success' | 'error';
+}): void {
+  logChatTurn(
+    buildChatTurnLog({
+      requestId: args.reqId,
+      sessionId: args.sessionId,
+      employeeId: args.employeeId,
+      role: args.role,
+      stream: args.stream,
+      model: MODEL,
+      query: args.query,
+      classification: args.plan?.classification,
+      toolsUsed: args.executed.map((t) => ({ name: t.name, ok: t.ok })),
+      usage: args.usage,
+      startedAt: args.startedAt,
+      outcome: args.outcome,
+    }),
+  );
+}
+
 router.post('/', async (req, res) => {
+  const startedAt = Date.now();
   try {
     const { message, sessionId, stream } = chatSchema.parse(req.body);
     const employeeId = req.user?.employeeId || '';
@@ -58,13 +91,18 @@ router.post('/', async (req, res) => {
       };
 
       let full = '';
+      let usage = emptyUsage();
+      let plan: LLMOutput | undefined;
+      let executed: ExecutedTool[] = [];
+      let outcome: 'success' | 'error' = 'success';
       try {
         // 1) LLM turn 1: classify + plan tool calls
         send({ type: 'status', stage: 'understanding' });
-        const plan = await llmService.classifyAndPlan(message, context, history);
+        const planned = await llmService.classifyAndPlan(message, context, history);
+        plan = planned.plan;
+        usage = addUsage(usage, planned.usage);
 
         // 2) Execute requested tools (failures captured per-call, never thrown)
-        let executed: ExecutedTool[] = [];
         if (plan.toolCalls.length > 0) {
           send({ type: 'status', stage: 'tools' });
           executed = await executeToolCalls(plan.toolCalls, context);
@@ -77,10 +115,12 @@ router.post('/', async (req, res) => {
         send({ type: 'status', stage: 'composing' });
         if (executed.length > 0) {
           try {
-            for await (const token of llmService.streamAnswer(message, context, history, executed)) {
+            const streamUsage = emptyUsage();
+            for await (const token of llmService.streamAnswer(message, context, history, executed, streamUsage)) {
               full += token;
               send({ type: 'token', content: token });
             }
+            usage = addUsage(usage, streamUsage);
           } catch (error) {
             // Streaming composition failed — fall back to the plan's own response
             logError(error as Error, { section: 'chat', event: 'stream composition failed' });
@@ -101,23 +141,41 @@ router.post('/', async (req, res) => {
         send({ type: 'suggestions', items: plan.followUpSuggestions ?? [] });
         send({ type: 'done' });
       } catch (error) {
+        outcome = 'error';
         logError(error as Error, { section: 'chat', event: 'stream failed' });
         send({ type: 'error', message: friendlyError(error) });
         send({ type: 'done' });
       } finally {
+        writeChatLog({
+          reqId: req.id,
+          sessionId: activeSessionId,
+          employeeId,
+          role,
+          stream: true,
+          query: message,
+          plan,
+          executed,
+          usage,
+          startedAt,
+          outcome,
+        });
         res.end();
       }
       return;
     }
 
     // Non-streaming: same two-turn flow, structured JSON response
-    const plan = await llmService.classifyAndPlan(message, context, history);
-    const executed = await executeToolCalls(plan.toolCalls, context);
+    let usage = emptyUsage();
+    const planned = await llmService.classifyAndPlan(message, context, history);
+    let finalOutput = planned.plan;
+    usage = addUsage(usage, planned.usage);
+    const executed = await executeToolCalls(planned.plan.toolCalls, context);
 
-    let finalOutput = plan;
     if (executed.length > 0) {
       try {
-        finalOutput = await llmService.composeWithToolResults(message, plan, executed, history, context);
+        const composed = await llmService.composeWithToolResults(message, planned.plan, executed, history, context);
+        finalOutput = composed.plan;
+        usage = addUsage(usage, composed.usage);
       } catch (error) {
         // Fall back to the plan's own response if composition fails
         logError(error as Error, { section: 'chat', event: 'tool composition failed' });
@@ -125,6 +183,19 @@ router.post('/', async (req, res) => {
     }
 
     await memoryService.appendMessage(activeSessionId, 'assistant', finalOutput.response);
+    writeChatLog({
+      reqId: req.id,
+      sessionId: activeSessionId,
+      employeeId,
+      role,
+      stream: false,
+      query: message,
+      plan: finalOutput,
+      executed,
+      usage,
+      startedAt,
+      outcome: 'success',
+    });
     res.json({
       success: true,
       data: {

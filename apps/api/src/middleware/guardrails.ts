@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../utils/logger';
+import { buildChatTurnLog, logChatTurn, logger } from '../utils/logger';
+import { emptyUsage } from '../services/cost';
+import { MODEL } from '../services/llm.service';
 
 /** Patterns blocked in user chat messages (not HTTP methods/paths). */
 const FORBIDDEN_PATTERNS = [
@@ -32,6 +34,21 @@ export function guardrailsMiddleware(req: Request, res: Response, next: NextFunc
       logger.warn(
         { requestId: req.id, employeeId: req.user?.employeeId, pattern: pattern.source },
         'Guardrail blocked request',
+      );
+      logChatTurn(
+        buildChatTurnLog({
+          requestId: req.id,
+          sessionId: typeof req.body?.sessionId === 'string' ? req.body.sessionId : 'none',
+          employeeId: req.user?.employeeId || 'unknown',
+          role: req.user?.role || 'unknown',
+          stream: Boolean(req.body?.stream),
+          model: MODEL,
+          query: message,
+          toolsUsed: [],
+          usage: emptyUsage(),
+          startedAt: Date.now(),
+          outcome: 'guardrail_blocked',
+        }),
       );
       res.status(403).json({
         success: false,

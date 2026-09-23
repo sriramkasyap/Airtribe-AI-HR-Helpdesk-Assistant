@@ -231,6 +231,21 @@ For diagrams of the full system (request path, streaming chat, tools, data model
 
 ---
 
+## Course deliverables
+
+| Artifact | Where |
+|----------|--------|
+| Architecture (request–response, deterministic tools, memory, logging) | [ARCHITECTURE.md](./ARCHITECTURE.md) |
+| System prompts labeled by the six Phase 2 components | [docs/PROMPTS.md](./docs/PROMPTS.md) · `apps/api/src/services/prompt.ts` |
+| Phase 3 policy documents | [docs/policies/](./docs/policies/) (seeded into Mongo) |
+| Employee-records “database” | [docs/employee-records.md](./docs/employee-records.md) · `pnpm seed` |
+| Demo transcript (6 required beats) | [docs/DEMO.md](./docs/DEMO.md) |
+| Security test notes | [docs/SECURITY.md](./docs/SECURITY.md) |
+| Sample Phase 7 logs + cost | [docs/sample-logs.md](./docs/sample-logs.md) |
+| Diagnosis write-up | [docs/DIAGNOSIS.md](./docs/DIAGNOSIS.md) |
+
+---
+
 ## Troubleshooting
 
 | Symptom | Fix |

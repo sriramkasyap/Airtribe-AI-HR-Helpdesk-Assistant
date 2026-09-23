@@ -172,6 +172,7 @@ sequenceDiagram
   participant Exec as executeToolCalls
   participant Tools as HR tools
   participant DB as MongoDB
+  participant Log as Phase 7 logger
 
   User->>UI: Send message
   UI->>Client: streamChat({ message, sessionId })
@@ -183,8 +184,8 @@ sequenceDiagram
 
   Route->>LLM: classifyAndPlan(message, context, history)
   LLM->>OR: Turn 1 — JSON plan + toolCalls
-  OR-->>LLM: structured plan
-  LLM-->>Route: plan
+  OR-->>LLM: structured plan + usage
+  LLM-->>Route: plan + token usage
 
   alt plan has toolCalls
     Route-->>Client: SSE status: tools
@@ -210,6 +211,7 @@ sequenceDiagram
   end
 
   Route->>Mem: append assistant reply
+  Route->>Log: chat_turn (tokens, cost, classification, tools, latency)
   Route-->>Client: SSE suggestions + done
   UI->>UI: render markdown + follow-ups
 ```
@@ -366,10 +368,11 @@ flowchart LR
   Req["POST /chat<br/>stream:false"] --> T1["classifyAndPlan"]
   T1 --> Tools["executeToolCalls"]
   Tools --> T2["composeWithToolResults"]
-  T2 --> JSON["APIResponse<br/>+ toolsUsed + sessionId"]
+  T2 --> Log["Phase 7 logger<br/>tokens + costUsd"]
+  Log --> JSON["APIResponse<br/>+ classification + toolsUsed"]
 ```
 
-The web UI uses **streaming only**; the non-stream path remains for API clients.
+The web UI uses **streaming only**; the non-stream path remains for API clients and for the demo (`docs/DEMO.md`).
 
 ---
 
@@ -390,6 +393,7 @@ flowchart LR
   subgraph Observability
     Pino["pino logger<br/>redacts secrets"]
     ReqId["request id"]
+    ChatTurn["chat_turn log<br/>classification, tools,<br/>tokens, latency, costUsd"]
     Health["/health<br/>DB status"]
   end
 

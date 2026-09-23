@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { buildAnswerPrompt, buildPrompt } from './prompt';
+import { emptyUsage, parseUsage, type TokenUsage } from './cost';
 import { logger } from '../utils/logger';
 import type { ToolContext } from '../tools/types';
 
@@ -53,10 +54,12 @@ export function parseStructuredOutput(text: string): LLMOutput {
 export interface SSETokenParser {
   push(chunk: string): string[];
   flush(): string[];
+  usage(): TokenUsage;
 }
 
 export function createSSETokenParser(): SSETokenParser {
   let buffer = '';
+  let lastUsage = emptyUsage();
   const extract = (block: string): string[] => {
     const tokens: string[] = [];
     for (const line of block.split('\n')) {
@@ -65,9 +68,13 @@ export function createSSETokenParser(): SSETokenParser {
       const data = trimmed.slice(5).trim();
       if (!data || data === '[DONE]') continue;
       try {
-        const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string | null } }> };
+        const parsed = JSON.parse(data) as {
+          choices?: Array<{ delta?: { content?: string | null } }>;
+          usage?: unknown;
+        };
         const token = parsed.choices?.[0]?.delta?.content;
         if (token) tokens.push(token);
+        if (parsed.usage) lastUsage = parseUsage(parsed.usage);
       } catch {
         /* skip malformed SSE lines */
       }
@@ -91,6 +98,7 @@ export function createSSETokenParser(): SSETokenParser {
       buffer = '';
       return rest.trim() ? extract(rest) : [];
     },
+    usage: () => lastUsage,
   };
 }
 
@@ -101,11 +109,16 @@ const REQUEST_OPTIONS = { reasoning: { exclude: true } } as const;
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const MODEL = process.env.OPENROUTER_MODEL || 'z-ai/glm-5.3-flash';
+export const MODEL = process.env.OPENROUTER_MODEL || 'z-ai/glm-5.3-flash';
 const TEMPERATURE = 0.3;
 const MAX_TOKENS = 4096;
 const TIMEOUT_MS = 120000;
 const MAX_ATTEMPTS = 3;
+
+export interface PlanResult {
+  plan: LLMOutput;
+  usage: TokenUsage;
+}
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -119,10 +132,10 @@ export class LLMService {
     userMessage: string,
     context: ToolContext,
     history: ChatMessage[] = [],
-  ): Promise<LLMOutput> {
+  ): Promise<PlanResult> {
     const prompt = buildPrompt(userMessage, history, context);
-    const raw = await this.callLLM(prompt);
-    return parseStructuredOutput(raw);
+    const { content, usage } = await this.callLLM(prompt);
+    return { plan: parseStructuredOutput(content), usage };
   }
 
   /**
@@ -135,6 +148,7 @@ export class LLMService {
     context: ToolContext,
     history: ChatMessage[],
     executedTools: Array<{ name: string; ok: boolean; summary: unknown }>,
+    usageOut?: TokenUsage,
   ): AsyncGenerator<string> {
     if (!OPENROUTER_API_KEY) {
       throw new LLMOutputError('OpenRouter API key is not configured (set OPENROUTER_API_KEY)');
@@ -146,6 +160,7 @@ export class LLMService {
         model: MODEL,
         messages: [{ role: 'system', content: prompt }],
         stream: true,
+        stream_options: { include_usage: true },
         temperature: TEMPERATURE,
         max_tokens: MAX_TOKENS,
         ...REQUEST_OPTIONS,
@@ -165,6 +180,11 @@ export class LLMService {
       for (const token of parser.push(String(chunk))) yield token;
     }
     for (const token of parser.flush()) yield token;
+    if (usageOut) {
+      const usage = parser.usage();
+      usageOut.promptTokens = usage.promptTokens;
+      usageOut.completionTokens = usage.completionTokens;
+    }
   }
 
   /**
@@ -177,7 +197,7 @@ export class LLMService {
     executedTools: Array<{ name: string; ok: boolean; summary: unknown }>,
     history: ChatMessage[] = [],
     context?: ToolContext,
-  ): Promise<LLMOutput> {
+  ): Promise<PlanResult> {
     const prompt = [
       buildPrompt(userMessage, history, context),
       '<tool_results>',
@@ -187,11 +207,11 @@ export class LLMService {
       'If a tool failed or returned no data, say so honestly and suggest contacting HR.',
     ].join('\n');
 
-    const raw = await this.callLLM(prompt);
-    return parseStructuredOutput(raw);
+    const { content, usage } = await this.callLLM(prompt);
+    return { plan: parseStructuredOutput(content), usage };
   }
 
-  private async callLLM(prompt: string): Promise<string> {
+  private async callLLM(prompt: string): Promise<{ content: string; usage: TokenUsage }> {
     if (!OPENROUTER_API_KEY) {
       throw new LLMOutputError('OpenRouter API key is not configured (set OPENROUTER_API_KEY)');
     }
@@ -218,7 +238,7 @@ export class LLMService {
         );
         const message = response.data?.choices?.[0]?.message?.content;
         if (!message) throw new LLMOutputError('Empty response from LLM');
-        return message;
+        return { content: message, usage: parseUsage(response.data?.usage) };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         logger.warn({ attempt, error: lastError.message }, 'LLM call failed, retrying');

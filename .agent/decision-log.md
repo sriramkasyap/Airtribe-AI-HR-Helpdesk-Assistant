@@ -1,5 +1,15 @@
 # Decision log
 
+## 2026-09-23 21:59 — Fill mid-term deliverable gaps
+
+| Confidence | Decision | Where | Reasoning | Spec link |
+|---|---|---|---|---|
+| Low | Mapped Phase 2’s six prompt components to Role, Allowed evidence, Output contract, Behavior rules, Failure behavior, Examples | `prompt.ts`, `docs/PROMPTS.md` | Those were the six labeled blocks in the original starter prompt; the assignment PDF was not in the repo | unlinked |
+| Medium | Cost uses the starter rates $0.002 / $0.004 per 1M tokens, overridable by env | `cost.ts` | Restores the deleted `calculateCost` numbers so the formula is visible even if live OpenRouter prices differ | partially linked |
+| Medium | Demo is a curl transcript, not a GIF or a stream toggle in the web UI | `docs/DEMO.md` | The UI is streaming-only; non-stream + classification JSON is what the rubric asks to show | partially linked |
+| High | Seed loads policy markdown from `docs/policies/` so the “database” and the submitted policy files cannot drift | `seed.ts` | Phase 3 asks for the policy documents and the records the tools read | linked |
+| High | Diagnosis write-up is the manager JWT-role bug, not a new failure hunt | `docs/DIAGNOSIS.md` | Already had before/after tests in `managerAccess.test.ts` | linked |
+
 ## 2026-09-21 19:20 — Manager-only HR policies tab + CRUD
 
 | Confidence | Decision | Where | Reasoning | Spec link |

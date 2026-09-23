@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import mongoose from 'mongoose';
 import { EmployeeModel } from '../models/Employee';
 import { ReimbursementModel } from '../models/Reimbursement';
@@ -5,6 +7,17 @@ import { HRPolicyModel } from '../models/HRPolicy';
 
 const CURRENT_YEAR = new Date().getFullYear();
 const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
+/** seed.ts is apps/api/src/db/seeds → five levels up is the repo root. */
+const POLICIES_DIR = path.resolve(__dirname, '../../../../../docs/policies');
+
+function loadPolicy(filename: string, fallback: string): string {
+  try {
+    return fs.readFileSync(path.join(POLICIES_DIR, filename), 'utf8').trim();
+  } catch {
+    return fallback;
+  }
+}
 
 const SEED_DATA = {
   employees: [
@@ -41,9 +54,39 @@ const SEED_DATA = {
     { id: 'reb2', employeeId: 'emp3', amount: 200, status: 'approved', type: 'office_supplies', submittedAt: daysAgo(11) },
   ],
   policies: [
-    { id: 'pol1', title: 'Remote Work Policy', category: 'remote_work', content: 'Employees may work remotely up to 3 days per week.', effectiveDate: new Date('2024-01-01'), isActive: true },
-    { id: 'pol2', title: 'Code of Conduct', category: 'conduct', content: 'All employees must follow the company code of conduct.', effectiveDate: new Date('2024-01-01'), isActive: true },
-    { id: 'pol3', title: 'PTO Policy', category: 'leave', content: 'Employees are entitled to PTO based on their tenure.', effectiveDate: new Date('2024-01-01'), isActive: true },
+    {
+      id: 'pol1',
+      title: 'Remote Work Policy',
+      category: 'remote_work',
+      content: loadPolicy(
+        'remote-work.md',
+        'Employees may work remotely up to 3 days per week.',
+      ),
+      effectiveDate: new Date('2024-01-01'),
+      isActive: true,
+    },
+    {
+      id: 'pol2',
+      title: 'Code of Conduct',
+      category: 'conduct',
+      content: loadPolicy(
+        'code-of-conduct.md',
+        'All employees must follow the company code of conduct.',
+      ),
+      effectiveDate: new Date('2024-01-01'),
+      isActive: true,
+    },
+    {
+      id: 'pol3',
+      title: 'PTO Policy',
+      category: 'leave',
+      content: loadPolicy(
+        'pto.md',
+        'Employees are entitled to PTO based on their tenure.',
+      ),
+      effectiveDate: new Date('2024-01-01'),
+      isActive: true,
+    },
   ],
 };
 
